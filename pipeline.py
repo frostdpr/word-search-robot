@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+
 import cv2 as cv
 import pytesseract
 import numpy as np
 import math 
-
+import sys
+import puzzle_solver as ps
 #pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
 
 
@@ -19,7 +22,22 @@ def capture_image(device, mirror=False, debug=False):
 
         if cv.waitKey(1) == 27: 
             cv.destroyAllWindows()
-            return img
+            
+            #shadow removal from https://stackoverflow.com/questions/44752240/how-to-remove-shadow-from-scanned-images-using-opencv
+            rgb_planes = cv.split(img)
+            result_planes = []
+            result_norm_planes = []
+            for plane in rgb_planes:
+                dilated_img = cv.dilate(plane, np.ones((7,7), np.uint8))
+                bg_img = cv.medianBlur(dilated_img, 21)
+                diff_img = 255 - cv.absdiff(plane, bg_img)
+                norm_img = cv.normalize(diff_img,None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8UC1)
+                result_planes.append(diff_img)
+                result_norm_planes.append(norm_img)
+
+            result = cv.merge(result_planes)
+            result_norm = cv.merge(result_norm_planes)
+            return result_norm
 
 def display(img):
     while True:
@@ -75,9 +93,13 @@ def segment(img, prob=False, debug=False):
     mask = np.ones(img.shape[:2], dtype="uint8") * 255 
 
     #ret,thresh = cv.threshold(gray,127,255,0)
-    thresh = cv.Canny(gray, 50, 150, None, 3)
-    contours,hier = cv.findContours(thresh,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE)
-
+    canny = cv.Canny(gray, 50, 150, None, 3)
+    contours,hier = cv.findContours(canny, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
+    
+    if not contours:
+        print("Didn't find any squares!")
+        return
+    
     for cnt in contours:
         if cv.contourArea(cnt)>5000:  #remove small areas like noise etc
             hull = cv.convexHull(cnt) #find the convex hull of contour
@@ -99,25 +121,50 @@ def segment(img, prob=False, debug=False):
             break;
     return puzzle, bank
  
-def tesseract(puzzle, bank):
-    puzzle = cv.resize(puzzle, (0,0), fx=3, fy=3)
+def tesseract(puzzle, bank) -> list:
+    #resize
+    puzzle = cv.resize(puzzle, (0,0), fx=2, fy=2)
     bank = cv.resize(bank, (0,0), fx=1.5, fy=1.5)
-    cv.threshold(src=puzzle, thresh=100, maxval=255, type=0, dst=puzzle)
-    cv.threshold(src=bank, thresh=95, maxval=255, type=0, dst=bank)
+    
+    #grayscale
+    puzzle = cv.cvtColor(puzzle, cv.COLOR_BGR2GRAY)
+    bank = cv.cvtColor(bank, cv.COLOR_BGR2GRAY)
+    
+    #apply otsu binarize
+    cv.threshold(src=puzzle, thresh=100, maxval=255, dst=puzzle, type=cv.THRESH_OTSU)
+    cv.threshold(src=bank, thresh=95, maxval=255, dst=bank, type=cv.THRESH_OTSU)
+    
+    #correct orientation
     puzzle = cv.rotate(puzzle, cv.ROTATE_90_CLOCKWISE)
     bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
+    
     display(puzzle)
-    display(bank)
-    #img = cv.adaptiveThreshold(src=img, maxValue=255, adaptiveMethod=1, thresholdType=0, blockSize=7, C=14)
-    puzzle_config = r'--tessdata-dir ./protos_data -l eng  --oem 0 --psm 3'
+    #display(bank)
+    
+    puzzle_config = r'--tessdata-dir ./protos_data -l eng  --oem 0 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
     bank_config = r'--oem 3, psm 3'
+    
     puzzle_detection = pytesseract.image_to_string(puzzle, config = puzzle_config)
     bank_detection = pytesseract.image_to_string(bank)
-    parsed_puzzle_detection = [[i.split(' ')] for i in puzzle_detection.split('\n')]
-    rotated_puzzle = list(zip(*parsed_puzzle_detection[::-1]))
+    
+    #cleanup detection output
+    parsed_puzzle = [i.split(' ') for i in puzzle_detection.split('\n') if len(i.split(' ')) > 0]
+    #rotated_puzzle = list(zip(*parsed_puzzle[::-1]))
+    parsed_bank = [i.strip() for i in bank_detection.split('\n') if len(i.strip()) > 2]
+    
+    #quick and messy bounding boxes
+    d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
+    n_boxes = len(d['level'])
+    for i in range(n_boxes):
+        (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
+        cv.rectangle(puzzle, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    display(puzzle)
+    
     print('-------------------PUZZLE----------------------')
     #print('/n'.join(rotated_puzzle[0]))
-    clean_puzzle = rotated_puzzle[0]
+    
+    #clean_puzzle = rotated_puzzle[0]
+    '''
     for j in range(len(clean_puzzle[0][0])):		
         for idx, item in enumerate(clean_puzzle):
             try:
@@ -125,12 +172,15 @@ def tesseract(puzzle, bank):
             except:
                 print('*', end='')
         print('')
-
+    '''
             
-    #print(puzzle_detection)
+    print(parsed_puzzle)
     print('-------------------WORD BANK----------------------')
-    print(bank_detection)
-
+    print(parsed_bank)
+    
+    return parsed_puzzle, parsed_bank
+    
+    
 def debug(function, device):
 
     while True:
@@ -143,6 +193,10 @@ def debug(function, device):
     cv.destroyAllWindows()
 
 def main():
+
+    if int(str(pytesseract.get_tesseract_version())[0]) < 4:
+        sys.exit('Tesseract 4.0.0 or greater required!') 
+
     cam = cv.VideoCapture(0)
     cam.set(3,1280) #height
     cam.set(4,720) #width
@@ -150,7 +204,8 @@ def main():
     img = capture_image(cam)
 
     puzzle, bank = segment(img)
-    tesseract(puzzle, bank)
-
+    detected_puzzle, detected_bank = tesseract(puzzle, bank)
+    solver = ps.PuzzleSolver(1,1, detected_puzzle, detected_bank)
+    
 if __name__ == '__main__':
     main()
