@@ -9,7 +9,7 @@ WIP
 1. `./build_opencv.sh 4.1.1`
 2. `pip3 install -r requirements-jetson.txt`
 
-### Other
+### Other platforms
 1. `pip3 install -r requirements.txt`
 
 ## Usage
