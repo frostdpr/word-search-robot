@@ -6,8 +6,8 @@ import numpy as np
 import math 
 import sys
 import puzzle_solver as ps
-#pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
-
+pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
+tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
 
 def capture_image(device, mirror=False, debug=False):
     
@@ -96,7 +96,7 @@ def segment(img, prob=False, debug=False):
     canny = cv.Canny(gray, 50, 150, None, 3)
     contours,hier = cv.findContours(canny, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
     
-    if not contours:
+    if len(contours) == 0:
         print("Didn't find any squares!")
         return
     
@@ -123,8 +123,8 @@ def segment(img, prob=False, debug=False):
  
 def tesseract(puzzle, bank) -> list:
     #resize
-    puzzle = cv.resize(puzzle, (0,0), fx=2, fy=2)
-    bank = cv.resize(bank, (0,0), fx=1.5, fy=1.5)
+    puzzle = cv.resize(puzzle, (0,0), fx=3, fy=3)
+    bank = cv.resize(bank, (0,0), fx=3, fy=3)
     
     #grayscale
     puzzle = cv.cvtColor(puzzle, cv.COLOR_BGR2GRAY)
@@ -141,14 +141,14 @@ def tesseract(puzzle, bank) -> list:
     display(puzzle)
     #display(bank)
     
-    puzzle_config = r'--tessdata-dir ./protos_data -l eng  --oem 0 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
-    bank_config = r'--oem 3, psm 3'
+    puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
+    bank_config = r'--tessdata-dir "./protos_data/tessdata_best" -l eng --oem 2 --psm 3'
     
     puzzle_detection = pytesseract.image_to_string(puzzle, config = puzzle_config)
     bank_detection = pytesseract.image_to_string(bank)
     
     #cleanup detection output
-    parsed_puzzle = [i.split(' ') for i in puzzle_detection.split('\n') if len(i.split(' ')) > 0]
+    parsed_puzzle = [i.strip() for i in puzzle_detection.split('\n') if len(i.strip()) > 0]
     #rotated_puzzle = list(zip(*parsed_puzzle[::-1]))
     parsed_bank = [i.strip() for i in bank_detection.split('\n') if len(i.strip()) > 2]
     
