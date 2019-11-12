@@ -1,4 +1,5 @@
 pytesseract
+pyserial
 numpy
 matplotlib
 pillow
