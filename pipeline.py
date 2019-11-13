@@ -6,6 +6,8 @@ import numpy as np
 import math 
 import sys
 import puzzle_solver as ps
+import draw as drw
+
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
 tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
 
@@ -197,6 +199,10 @@ def main():
     if int(str(pytesseract.get_tesseract_version())[0]) < 4:
         sys.exit('Tesseract 4.0.0 or greater required!') 
 
+
+    jetson_UART = "/dev/ttyTHS1"
+    drawer = drw.Drawer(None)
+
     cam = cv.VideoCapture(0)
     cam.set(3,1280) #height
     cam.set(4,720) #width
@@ -207,5 +213,9 @@ def main():
     detected_puzzle, detected_bank = tesseract(puzzle, bank)
     solver = ps.PuzzleSolver(1,1, detected_puzzle, detected_bank)
     
+
+
+    drawer.cleanup()
+
 if __name__ == '__main__':
     main()
