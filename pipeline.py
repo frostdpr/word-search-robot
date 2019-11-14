@@ -25,22 +25,8 @@ def capture_image(device, mirror=False, debug=False):
 
         if cv.waitKey(1) == 27: 
             cv.destroyAllWindows()
+            return img
             
-            #shadow removal from https://stackoverflow.com/questions/44752240/how-to-remove-shadow-from-scanned-images-using-opencv
-            rgb_planes = cv.split(img)
-            result_planes = []
-            result_norm_planes = []
-            for plane in rgb_planes:
-                dilated_img = cv.dilate(plane, np.ones((7,7), np.uint8))
-                bg_img = cv.medianBlur(dilated_img, 21)
-                diff_img = 255 - cv.absdiff(plane, bg_img)
-                norm_img = cv.normalize(diff_img,None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8UC1)
-                result_planes.append(diff_img)
-                result_norm_planes.append(norm_img)
-
-            result = cv.merge(result_planes)
-            result_norm = cv.merge(result_norm_planes)
-            return result_norm
 
 def display(img):
     while True:
@@ -48,6 +34,24 @@ def display(img):
         if cv.waitKey(1) == 27: 
             cv.destroyAllWindows()
             break;
+
+def remove_shadow(img):
+    #shadow removal from https://stackoverflow.com/questions/44752240/how-to-remove-shadow-from-scanned-images-using-opencv
+    rgb_planes = cv.split(img)
+    result_planes = []
+    result_norm_planes = []
+    for plane in rgb_planes:
+        dilated_img = cv.dilate(plane, np.ones((7,7), np.uint8))
+        bg_img = cv.medianBlur(dilated_img, 21)
+        diff_img = 255 - cv.absdiff(plane, bg_img)
+        norm_img = cv.normalize(diff_img,None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8UC1)
+        result_planes.append(diff_img)
+        result_norm_planes.append(norm_img)
+
+    result = cv.merge(result_planes)
+    result_norm = cv.merge(result_norm_planes)
+    return result_norm
+
 
 def segment(img, prob=False, debug=False):
     '''
@@ -223,7 +227,7 @@ def main():
         cv.waitKey(0)
     else:
         img = capture_image(cam)
-
+    img = remove_shadow(img)
     puzzle, bank = segment(img)
     detected_puzzle, detected_bank = tesseract(puzzle, bank)
     solver = ps.PuzzleSolver(1,1, detected_puzzle, detected_bank)
