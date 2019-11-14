@@ -7,6 +7,7 @@ import math
 import sys
 import puzzle_solver as ps
 import draw as drw
+import argparse
 
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
 tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
@@ -194,7 +195,16 @@ def debug(function, device):
 
     cv.destroyAllWindows()
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--image', help='word puzzle image to be solved', type=str)
+    args = parser.parse_args()
+
+    return args.image
+
 def main():
+
+    args = parse_args()
 
     if int(str(pytesseract.get_tesseract_version())[0]) < 4:
         sys.exit('Tesseract 4.0.0 or greater required!') 
@@ -207,13 +217,17 @@ def main():
     cam.set(3,1280) #height
     cam.set(4,720) #width
 
-    img = capture_image(cam)
+    if args:
+        img = cv.imread(args)
+        cv.imshow("OpenCV Image Reading", img)
+        cv.waitKey(0)
+    else:
+        img = capture_image(cam)
 
     puzzle, bank = segment(img)
     detected_puzzle, detected_bank = tesseract(puzzle, bank)
     solver = ps.PuzzleSolver(1,1, detected_puzzle, detected_bank)
     
-
 
     drawer.cleanup()
 
