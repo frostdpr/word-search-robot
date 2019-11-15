@@ -8,8 +8,9 @@ import sys
 import puzzle_solver as ps
 import draw as drw
 import argparse
+import jamspell
 
-pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
+#pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
 tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
 
 def capture_image(device, mirror=False, debug=False):
@@ -226,9 +227,32 @@ def main():
 
     puzzle, bank = segment(img)
     detected_puzzle, detected_bank = tesseract(puzzle, bank)
-    solver = ps.PuzzleSolver(1,1, detected_puzzle, detected_bank)
-    
 
+    detected_puzzle = []
+    with open('test_searches/word_search.txt', 'r') as f:
+        line = f.readline()
+        while line:
+            detected_puzzle.append(line[:-1].lower())
+            detected_puzzle[-1] = detected_puzzle[-1].split(" ")
+            line = f.readline()
+
+
+    detected_bank = [word.lower() for word in detected_bank]
+    solver = ps.PuzzleSolver(len(detected_puzzle[0]),len(detected_puzzle), detected_puzzle, detected_bank)
+
+    print('-------------------SOLVING PUZZLE----------------------')
+    incorrect_words = solver.solve()
+    print('Incorrect words', incorrect_words)
+
+    print('-------------------CORRECTED WORD BANK----------------------')
+
+    corrector = jamspell.TSpellCorrector()
+    corrector.LoadLangModel('protos_data/en.bin')
+
+    for i in range(len(incorrect_words)):
+        print(corrector.GetCandidates(incorrect_words, i))
+
+    #print(incorrect_words)
     drawer.cleanup()
 
 if __name__ == '__main__':

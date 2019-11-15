@@ -60,6 +60,9 @@ class PuzzleSolver:
 
     def solve(self):
         word_count = 0
+        not_found = list(self.bank.keys())
+        print('\n\n')
+        print('puzzle bank', not_found)
         for i in range(self.r):
             for j in range(self.c):
                 for d in range(8):
@@ -68,6 +71,12 @@ class PuzzleSolver:
 
                         if self.bank[word] == word:
                             print(i, j, word)
+                            try:
+                                not_found.remove(word)
+                            except:
+                                pass
+
                             word_count += 1
 
         print('words found', word_count)
+        return not_found
