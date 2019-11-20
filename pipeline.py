@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import math 
+import sys
+import os
+import argparse
 import cv2 as cv
 import pytesseract
 import numpy as np
-import math 
-import sys
 import puzzle_solver as ps
 import draw as drw
 import argparse
@@ -26,22 +28,8 @@ def capture_image(device, mirror=False, debug=False):
 
         if cv.waitKey(1) == 27: 
             cv.destroyAllWindows()
+            return img
             
-            #shadow removal from https://stackoverflow.com/questions/44752240/how-to-remove-shadow-from-scanned-images-using-opencv
-            rgb_planes = cv.split(img)
-            result_planes = []
-            result_norm_planes = []
-            for plane in rgb_planes:
-                dilated_img = cv.dilate(plane, np.ones((7,7), np.uint8))
-                bg_img = cv.medianBlur(dilated_img, 21)
-                diff_img = 255 - cv.absdiff(plane, bg_img)
-                norm_img = cv.normalize(diff_img,None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8UC1)
-                result_planes.append(diff_img)
-                result_norm_planes.append(norm_img)
-
-            result = cv.merge(result_planes)
-            result_norm = cv.merge(result_norm_planes)
-            return result_norm
 
 def display(img):
     while True:
@@ -49,6 +37,79 @@ def display(img):
         if cv.waitKey(1) == 27: 
             cv.destroyAllWindows()
             break;
+
+def calibrate(path, chessboard_rows, chessboard_cols, debug=False):
+
+    calibration_cache = os.path.join(path, 'calibration.txt')
+
+    if not os.path.exists(path):
+        print("Path doesn't exist!")
+        return
+
+    if os.path.exists(calibration_cache):
+        print('Using previously calculated parameters!')
+        return open(calibration_cache, 'r').read()
+
+
+    objp = np.zeros((chessboard_cols*chessboard_rows,3), np.float32)
+    objp[:,:2] = np.mgrid[0:chessboard_rows,0:chessboard_cols].T.reshape(-1,2)
+
+    criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER,
+                     30, 0.001)
+    
+    # Arrays to store object points and image points from all the images.
+    objpoints = [] # 3d point in real world space
+    imgpoints = [] # 2d points in image plane.
+
+    for file in os.listdir(path):
+        filename = os.fsdecode(file)      
+        filepath = os.path.join(path, filename)
+
+        print('Processing', filepath)
+        img = cv.imread(filepath)
+        img = cv.resize(img, (0,0), fx=.25, fy=.25)
+
+        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+
+        # Find the chess board corners
+        ret, corners = cv.findChessboardCorners(gray, (chessboard_rows, chessboard_cols),None)
+
+        # If found, add object points, image points (after refining them)
+        if ret == True:
+            objpoints.append(objp)
+
+            corners2 = cv.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
+            imgpoints.append(corners2)
+
+            # Draw and display the corners
+            img = cv.drawChessboardCorners(img, (chessboard_rows, chessboard_cols), corners2,ret)
+            cv.imshow('img',img)
+            cv.waitKey(500)
+
+    cv.destroyAllWindows()
+        
+    params = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+    f = open(calibration_cache, 'w')
+    f.write(params)
+    return params
+
+def remove_shadow(img):
+    #shadow removal from https://stackoverflow.com/questions/44752240/how-to-remove-shadow-from-scanned-images-using-opencv
+    rgb_planes = cv.split(img)
+    result_planes = []
+    result_norm_planes = []
+    for plane in rgb_planes:
+        dilated_img = cv.dilate(plane, np.ones((7,7), np.uint8))
+        bg_img = cv.medianBlur(dilated_img, 21)
+        diff_img = 255 - cv.absdiff(plane, bg_img)
+        norm_img = cv.normalize(diff_img,None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8UC1)
+        result_planes.append(diff_img)
+        result_norm_planes.append(norm_img)
+
+    result = cv.merge(result_planes)
+    result_norm = cv.merge(result_norm_planes)
+    return result_norm
+
 
 def segment(img, prob=False, debug=False):
     '''
@@ -93,7 +154,7 @@ def segment(img, prob=False, debug=False):
     return cdst
     #return (puzzle_main, puzzle_bank)
     '''
-    gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
+    gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     mask = np.ones(img.shape[:2], dtype="uint8") * 255 
 
     #ret,thresh = cv.threshold(gray,127,255,0)
@@ -130,6 +191,10 @@ def tesseract(puzzle, bank) -> list:
     puzzle = cv.resize(puzzle, (0,0), fx=3, fy=3)
     bank = cv.resize(bank, (0,0), fx=3, fy=3)
     
+    #sharpen bank
+    kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+    bank = cv.filter2D(bank, -1, kernel)
+    
     #grayscale
     puzzle = cv.cvtColor(puzzle, cv.COLOR_BGR2GRAY)
     bank = cv.cvtColor(bank, cv.COLOR_BGR2GRAY)
@@ -146,10 +211,10 @@ def tesseract(puzzle, bank) -> list:
     #display(bank)
     
     puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
-    bank_config = r'--tessdata-dir "./protos_data/tessdata_best" -l eng --oem 2 --psm 3'
+    bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz textord_heavy_nr=1 '
     
     puzzle_detection = pytesseract.image_to_string(puzzle, config = puzzle_config)
-    bank_detection = pytesseract.image_to_string(bank)
+    bank_detection = pytesseract.image_to_string(bank, config=bank_config)
     
     #cleanup detection output
     parsed_puzzle = [i.strip() for i in puzzle_detection.split('\n') if len(i.strip()) > 0]
@@ -211,6 +276,8 @@ def main():
         sys.exit('Tesseract 4.0.0 or greater required!') 
 
 
+    
+
     jetson_UART = "/dev/ttyTHS1"
     drawer = drw.Drawer(None)
 
@@ -225,6 +292,8 @@ def main():
     else:
         img = capture_image(cam)
 
+
+    img = remove_shadow(img)
     puzzle, bank = segment(img)
     detected_puzzle, detected_bank = tesseract(puzzle, bank)
 
