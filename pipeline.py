@@ -268,15 +268,69 @@ def parse_args():
 
     return args.image
 
+
+def permutative_solve(detected_bank, detected_puzzle = None): 
+
+    detected_bank = [word.lower() for word in detected_bank]
+
+    if detected_puzzle == None:
+        detected_puzzle = []
+        with open('test_searches/word_search.txt', 'r') as f:
+            line = f.readline()
+            while line:
+                detected_puzzle.append(line[:-1].lower())
+                detected_puzzle[-1] = detected_puzzle[-1].split(" ")
+                line = f.readline()
+
+    solver = ps.PuzzleSolver(len(detected_puzzle[0]),len(detected_puzzle), detected_puzzle, detected_bank)
+
+    print('-------------------SOLVING PUZZLE----------------------')
+    incorrect_words = solver.solve()
+    print('Incorrect words', incorrect_words)
+
+    print('-------------------CORRECTED WORD BANK----------------------')
+
+    corrector = jamspell.TSpellCorrector()
+    corrector.LoadLangModel('protos_data/en.bin')
+
+    potential_words = []
+    retry_bank = []
+    max_candidates = 0
+
+    for i in range(len(incorrect_words)):
+        candidates = corrector.GetCandidates(incorrect_words, i)
+
+        if len(candidates) != 0:
+            max_candidates = len(candidates) if len(candidates) > max_candidates else max_candidates
+            potential_words.append(candidates)
+
+    print(potential_words)
+
+    for i in range(max_candidates):
+        retry_bank = []
+        for words in potential_words:
+            if i >= len(words):
+                continue
+
+            retry_bank.append(words[i])
+
+        print("RETRY BANK IS", retry_bank)
+        solver.load_word_bank(retry_bank)
+        print('Words not found after iteration', solver.solve())
+
+    print('-------------------BANK CANDIDATES----------------------')
+    print(retry_bank)
+    print('-------------------BANK----------------------')
+    print(incorrect_words)
+    #for word in correct_bank_candidates:
+
+
 def main():
 
     args = parse_args()
 
     if int(str(pytesseract.get_tesseract_version())[0]) < 4:
         sys.exit('Tesseract 4.0.0 or greater required!') 
-
-
-    
 
     jetson_UART = "/dev/ttyTHS1"
     drawer = drw.Drawer(None)
@@ -297,31 +351,8 @@ def main():
     puzzle, bank = segment(img)
     detected_puzzle, detected_bank = tesseract(puzzle, bank)
 
-    detected_puzzle = []
-    with open('test_searches/word_search.txt', 'r') as f:
-        line = f.readline()
-        while line:
-            detected_puzzle.append(line[:-1].lower())
-            detected_puzzle[-1] = detected_puzzle[-1].split(" ")
-            line = f.readline()
+    permutative_solve(detected_bank)
 
-
-    detected_bank = [word.lower() for word in detected_bank]
-    solver = ps.PuzzleSolver(len(detected_puzzle[0]),len(detected_puzzle), detected_puzzle, detected_bank)
-
-    print('-------------------SOLVING PUZZLE----------------------')
-    incorrect_words = solver.solve()
-    print('Incorrect words', incorrect_words)
-
-    print('-------------------CORRECTED WORD BANK----------------------')
-
-    corrector = jamspell.TSpellCorrector()
-    corrector.LoadLangModel('protos_data/en.bin')
-
-    for i in range(len(incorrect_words)):
-        print(corrector.GetCandidates(incorrect_words, i))
-
-    #print(incorrect_words)
     drawer.cleanup()
 
 if __name__ == '__main__':

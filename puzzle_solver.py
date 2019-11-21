@@ -1,4 +1,5 @@
 from collections import defaultdict
+import sys
 
 class PuzzleSolver:
 
@@ -8,18 +9,16 @@ class PuzzleSolver:
         self.puzzle = puzzle
         self.min_word_len = 23
         self.max_word_len = 0
-        self.bank = self.load_word_bank(bank)
+        self.load_word_bank(bank)
     
     #Takes in a list of strings to insert into wordbank dictionary
     def load_word_bank(self, bank):
-        ret = defaultdict(lambda: None)
+        self.bank = defaultdict(lambda: None)
 
         for word in bank:
             self.min_word_len = min(self.min_word_len, len(word))
             self.max_word_len = max(self.max_word_len, len(word))
-            ret[word] = word
-
-        return ret
+            self.bank[word] = word
 
     #switch case for direction
     def get_word_in_grid(self, startRow, startCol, d, l):
