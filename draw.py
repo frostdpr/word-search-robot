@@ -17,3 +17,9 @@ class Drawer:
 
 	def draw(self, p1 : (int, int), p2 : (int, int)):
 		pass
+
+	def read(self):
+	    return self.serial_port.read(8) 
+	
+	def send(self, data):
+	    self.serial_port.write(data)

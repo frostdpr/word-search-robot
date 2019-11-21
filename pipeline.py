@@ -281,8 +281,8 @@ def main():
 
    
     jetson_UART = "/dev/ttyTHS1"
-    drawer = drw.Drawer(None)
-
+    drawer = drw.Drawer(jetson_UART)
+    
     cam = cv.VideoCapture(0)
     cam.set(3,1280) #height
     cam.set(4,720) #width
@@ -304,8 +304,14 @@ def main():
     puzzle, bank = segment(img)
     detected_puzzle, detected_bank = tesseract(puzzle, bank, True)
     solver = ps.PuzzleSolver(1,1, detected_puzzle, detected_bank)
-    
-
+    '''
+    while(True):
+        drawer.send('00001010'.encode())
+        data = drawer.read()
+        print(data)
+        #drawer.send(data)
+    '''
+        
     drawer.cleanup()
 
 if __name__ == '__main__':
