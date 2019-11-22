@@ -268,6 +268,15 @@ def parse_args():
 
     return args.image
 
+def get_index(arr, target):
+
+    for words in enumerate(arr):
+
+        if target in words[1]:
+            return words[0]
+
+    return -1
+
 
 def permutative_solve(detected_bank, detected_puzzle = None): 
 
@@ -286,9 +295,12 @@ def permutative_solve(detected_bank, detected_puzzle = None):
 
     print('-------------------SOLVING PUZZLE----------------------')
     incorrect_words = solver.solve()
-    print('Incorrect words', incorrect_words)
 
-    print('-------------------CORRECTED WORD BANK----------------------')
+    if incorrect_words == None:
+        print("\nALL WORDS FOUND!")
+        return
+
+    print('Incorrect words', incorrect_words)
 
     corrector = jamspell.TSpellCorrector()
     corrector.LoadLangModel('protos_data/en.bin')
@@ -298,32 +310,38 @@ def permutative_solve(detected_bank, detected_puzzle = None):
     max_candidates = 0
 
     for i in range(len(incorrect_words)):
-        candidates = corrector.GetCandidates(incorrect_words, i)
+        candidates = list(corrector.GetCandidates(incorrect_words, i))
 
         if len(candidates) != 0:
             max_candidates = len(candidates) if len(candidates) > max_candidates else max_candidates
+            candidates.append(incorrect_words[i])
             potential_words.append(candidates)
-
-    print(potential_words)
 
     for i in range(max_candidates):
         retry_bank = []
         for words in potential_words:
-            if i >= len(words):
+            #last word is the original attempt, do not retry it
+            if i >= len(words) - 1:
                 continue
 
             retry_bank.append(words[i])
 
-        print("RETRY BANK IS", retry_bank)
+        print('-----------------RETRYING WITH NEW BANK----------------')
+
         solver.load_word_bank(retry_bank)
-        print('Words not found after iteration', solver.solve())
+        incorrect_retry = solver.solve()
 
-    print('-------------------BANK CANDIDATES----------------------')
-    print(retry_bank)
-    print('-------------------BANK----------------------')
-    print(incorrect_words)
-    #for word in correct_bank_candidates:
+        #Found every word! Done
+        if len(incorrect_retry) == 0:
+            print("\nALL WORDS FOUND!")
+            return
 
+        for word in retry_bank:
+            #if the word was found, delete it from potential words list
+            if word not in incorrect_retry:
+                potential_words.pop(get_index(potential_words, word))
+
+    print("SOME WORDS NOT FOUND:", potential_words)
 
 def main():
 

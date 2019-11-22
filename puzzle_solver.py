@@ -1,5 +1,4 @@
 from collections import defaultdict
-import sys
 
 class PuzzleSolver:
 
@@ -60,7 +59,6 @@ class PuzzleSolver:
     def solve(self):
         word_count = 0
         not_found = list(self.bank.keys())
-        print('\n\n')
         print('puzzle bank', not_found)
         for i in range(self.r):
             for j in range(self.c):
