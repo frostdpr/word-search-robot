@@ -4,6 +4,7 @@ import math
 import sys
 import os
 import argparse
+import ast
 import cv2 as cv
 import pytesseract
 import numpy as np
@@ -46,23 +47,26 @@ def calibrate(path, chessboard_rows, chessboard_cols, debug=False):
         print("Path doesn't exist!")
         return
 
-    if os.path.exists(calibration_cache):
+    if os.path.exists(calibration_cache) and False:# and os.path.getsize(calibration_cache) > 0:
         print('Using previously calculated parameters!')
-        return open(calibration_cache, 'r').read()
-
+        params = tuple([ast.literal_eval(i) for i in open(calibration_cache, 'r').read().split('@')])
+        return params
 
     objp = np.zeros((chessboard_cols*chessboard_rows,3), np.float32)
     objp[:,:2] = np.mgrid[0:chessboard_rows,0:chessboard_cols].T.reshape(-1,2)
 
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER,
                      30, 0.001)
-    
+
     # Arrays to store object points and image points from all the images.
     objpoints = [] # 3d point in real world space
     imgpoints = [] # 2d points in image plane.
 
     for file in os.listdir(path):
-        filename = os.fsdecode(file)      
+        filename = os.fsdecode(file)
+        ext = os.path.splitext(filename)[1]
+        if ext != '.png' and ext != '.jpeg':
+            continue
         filepath = os.path.join(path, filename)
 
         print('Processing', filepath)
@@ -81,16 +85,15 @@ def calibrate(path, chessboard_rows, chessboard_cols, debug=False):
             corners2 = cv.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
             imgpoints.append(corners2)
 
-            # Draw and display the corners
-            img = cv.drawChessboardCorners(img, (chessboard_rows, chessboard_cols), corners2,ret)
-            cv.imshow('img',img)
-            cv.waitKey(500)
+            if debug:
+                img = cv.drawChessboardCorners(img, (chessboard_rows, chessboard_cols), corners2,ret)
+                display(img)
 
-    cv.destroyAllWindows()
         
     params = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+    str_params = '@'.join(map(str,params))
     f = open(calibration_cache, 'w')
-    f.write(params)
+    f.write(str_params)
     return params
 
 def remove_shadow(img):
@@ -186,7 +189,7 @@ def segment(img, prob=False, debug=False):
             break;
     return puzzle, bank
  
-def tesseract(puzzle, bank) -> list:
+def tesseract(puzzle, bank, debug=False) -> list:
     #resize
     puzzle = cv.resize(puzzle, (0,0), fx=3, fy=3)
     bank = cv.resize(bank, (0,0), fx=3, fy=3)
@@ -207,8 +210,9 @@ def tesseract(puzzle, bank) -> list:
     puzzle = cv.rotate(puzzle, cv.ROTATE_90_CLOCKWISE)
     bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
     
-    display(puzzle)
-    #display(bank)
+    if debug:
+        display(puzzle)
+        display(bank)
     
     puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
     bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz textord_heavy_nr=1 '
@@ -219,7 +223,7 @@ def tesseract(puzzle, bank) -> list:
     #cleanup detection output
     parsed_puzzle = [i.strip() for i in puzzle_detection.split('\n') if len(i.strip()) > 0]
     #rotated_puzzle = list(zip(*parsed_puzzle[::-1]))
-    parsed_bank = [i.strip() for i in bank_detection.split('\n') if len(i.strip()) > 2]
+    parsed_bank = [i.strip().split()[0] for i in bank_detection.split('\n') if len(i.strip()) > 2]
     
     #quick and messy bounding boxes
     d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
@@ -227,7 +231,9 @@ def tesseract(puzzle, bank) -> list:
     for i in range(n_boxes):
         (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
         cv.rectangle(puzzle, (x, y), (x + w, y + h), (0, 255, 0), 2)
-    display(puzzle)
+    
+    if debug:
+        display(puzzle)
     
     print('-------------------PUZZLE----------------------')
     #print('/n'.join(rotated_puzzle[0]))
@@ -359,14 +365,20 @@ def main():
 
     if args:
         img = cv.imread(args)
-        cv.imshow("OpenCV Image Reading", img)
-        cv.waitKey(0)
+        display(img)
     else:
         img = capture_image(cam)
 
+     # param order ret, mtx, dist, rvecs, tvecs
+    params = calibrate('calibration', 6, 8)
+    ret, mtx, dist, rvecs, tvecs = params
+    
+
+    img = cv.undistort(img, mtx, dist, None, mtx)
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
+
     detected_puzzle, detected_bank = tesseract(puzzle, bank)
 
     permutative_solve(detected_bank)
