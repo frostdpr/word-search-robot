@@ -221,7 +221,10 @@ def tesseract(puzzle, bank, debug=False) -> list:
     #cleanup detection output
     parsed_puzzle = [i.strip() for i in puzzle_detection.split('\n') if len(i.strip()) > 0]
     #rotated_puzzle = list(zip(*parsed_puzzle[::-1]))
-    parsed_bank = [i.strip().split()[0] for i in bank_detection.split('\n') if len(i.strip()) > 2]
+    parsed_bank = []
+    for i in bank_detection.split('\n'):
+        if len(i.strip()) > 2:
+            parsed_bank.extend(i.strip().split())
     
     #quick and messy bounding boxes
     d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
@@ -298,7 +301,7 @@ def main():
     ret, mtx, dist, rvecs, tvecs = params
     
 
-    img = cv.undistort(img, mtx, dist, None, mtx)
+    #img = cv.undistort(img, mtx, dist, None, mtx)
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
