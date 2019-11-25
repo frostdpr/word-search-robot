@@ -240,20 +240,18 @@ def tesseract(puzzle, bank, debug=False) -> list:
     puzzle_detection = pytesseract.image_to_string(puzzle, config=puzzle_config)
     bank_detection = pytesseract.image_to_string(bank, config=bank_config)
 
-    # cleanup detection output
-    parsed_puzzle = [
-        i.strip() for i in puzzle_detection.split("\n") if len(i.strip()) > 0
-    ]
-    # rotated_puzzle = list(zip(*parsed_puzzle[::-1]))
-    parsed_bank = [
-        i.strip().split()[0] for i in bank_detection.split("\n") if len(i.strip()) > 2
-    ]
+    #cleanup detection output
+    parsed_puzzle = [i.strip() for i in puzzle_detection.split('\n') if len(i.strip()) > 0]
+    #rotated_puzzle = list(zip(*parsed_puzzle[::-1]))
+    parsed_bank = []
+    for i in bank_detection.split('\n'):
+        if len(i.strip()) > 2:
+            parsed_bank.extend(i.strip().split())
+    
+    #quick and messy bounding boxes
+    d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
+    n_boxes = len(d['level'])
 
-    # quick and messy bounding boxes
-    d = pytesseract.image_to_data(
-        puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config
-    )
-    n_boxes = len(d["level"])
     for i in range(n_boxes):
         (x, y, w, h) = (d["left"][i], d["top"][i], d["width"][i], d["height"][i])
         cv.rectangle(puzzle, (x, y), (x + w, y + h), (0, 255, 0), 2)
@@ -414,7 +412,7 @@ def main():
     # params = calibrate('calibration', 6, 8)
     # ret, mtx, dist, rvecs, tvecs = params
 
-    # img = cv.undistort(img, mtx, dist, None, mtx)
+    #img = cv.undistort(img, mtx, dist, None, mtx)
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
