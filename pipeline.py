@@ -281,9 +281,9 @@ def main():
     args = parse_args()
 
     if int(str(pytesseract.get_tesseract_version())[0]) < 4:
-        sys.exit("Tesseract 4.0.0 or greater required!")
+        sys.exit('Tesseract 4.0.0 or greater required!')
 
-    jetson_UART = "/dev/ttyTHS1"
+    jetson_UART = '/dev/ttyTHS1'
     drawer = drw.Drawer(None)
 
     cam = cv.VideoCapture(0)
