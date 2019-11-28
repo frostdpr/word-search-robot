@@ -135,13 +135,15 @@ def calibrate(path, chessboard_rows, chessboard_cols, debug=False):
     for file in os.listdir(path):
         filename = os.fsdecode(file)
         ext = os.path.splitext(filename)[1]
-        if ext != '.png' and ext != '.jpeg':
+        if ext != '.png' and ext != '.jpeg' and ext != '.JPG':
             continue
         filepath = os.path.join(path, filename)
 
         print('Processing', filepath)
         img = cv.imread(filepath)
-        img = cv.resize(img, (0,0), fx=.25, fy=.25)
+
+        if debug:
+            img = cv.resize(img, (0,0), fx=.5, fy=.5)
 
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
@@ -159,7 +161,7 @@ def calibrate(path, chessboard_rows, chessboard_cols, debug=False):
                 img = cv.drawChessboardCorners(img, (chessboard_rows, chessboard_cols), corners2,ret)
                 display(img)
 
-        
+    
     params = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
     str_params = '@'.join(map(str,params))
     f = open(calibration_cache, 'w')
@@ -235,14 +237,14 @@ def segment(img, prob=False, debug=False):
     contours,hier = cv.findContours(canny, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
     
     if len(contours) == 0:
-        print("Didn't find any squares!")
+        print("Didn't find any contours!")
         return
     
-    for cnt in contours:
+    for i, cnt in enumerate(contours):
         if cv.contourArea(cnt)>5000:  #remove small areas like noise etc
+            print('contour:', i)
             hull = cv.convexHull(cnt) #find the convex hull of contour
             hull = cv.approxPolyDP(hull,0.1*cv.arcLength(hull,True),True)
-            #print(hull)
             if len(hull)==4:
                 #cv.drawContours(img,[hull],0,(0,255,0),2)
                 x,y,w,h = cv.boundingRect(cnt) # get minimal bounding for contour
@@ -285,7 +287,7 @@ def tesseract(puzzle, bank, debug=False) -> list:
         display(bank)
     
     puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
-    bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz textord_heavy_nr=1 '
+    bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ textord_heavy_nr=1 '
     
     puzzle_detection = pytesseract.image_to_string(puzzle, config = puzzle_config)
     bank_detection = pytesseract.image_to_string(bank, config=bank_config)
@@ -434,20 +436,22 @@ def main():
 
     if args:
         img = cv.imread(args)
-        display(img)
+        #display(img)
     else:
         img = capture_image(cam)
 
     # param order ret, mtx, dist, rvecs, tvecs
-    # params = calibrate('calibration', 6, 8)
-    # ret, mtx, dist, rvecs, tvecs = params
+    params = calibrate('calibration', 6, 8, debug=False)
+    ret, mtx, dist, rvecs, tvecs = params
 
-    # img = cv.undistort(img, mtx, dist, None, mtx)
+    img = cv.undistort(img, mtx, dist, None, mtx)
+    display(img)
+
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
 
-    detected_puzzle, detected_bank = tesseract(puzzle, bank)
+    detected_puzzle, detected_bank = tesseract(puzzle, bank, debug=False)
 
     permutative_solve(detected_bank)
 
