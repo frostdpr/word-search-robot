@@ -297,7 +297,7 @@ def tesseract(puzzle, bank, debug=False) -> list:
         display(puzzle, 'Preprocessed Puzzle')
         display(bank, 'Preprocessed Word Bank')
     
-    puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
+    puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
     bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ textord_heavy_nr=1 '
     
     puzzle_detection = pytesseract.image_to_string(puzzle, config = puzzle_config)
@@ -465,9 +465,9 @@ def main():
     img = remove_shadow(img)
     puzzle, bank = segment(img)
 
-    detected_puzzle, detected_bank = tesseract(puzzle, bank, debug=False)
+    detected_puzzle, detected_bank = tesseract(puzzle, bank, debug=True)
 
-    #permutative_solve(detected_bank)
+    permutative_solve(detected_bank)
 
     drawer.cleanup()
 
