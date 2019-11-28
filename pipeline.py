@@ -96,16 +96,16 @@ def capture_image(device, mirror=False, debug=False):
 
         if debug:
             return img
-        cv.imshow('output', img)
+        cv.imshow('Camera View', img)
 
         if cv.waitKey(1) == 27: 
             cv.destroyAllWindows()
             return img
             
 
-def display(img):
+def display(img, title='img'):
     while True:
-        cv.imshow('img', img)
+        cv.imshow(title, img)
         if cv.waitKey(1) == 27: 
             cv.destroyAllWindows()
             break;
@@ -267,11 +267,9 @@ def segment(img, prob=False, debug=False):
     puzzle = img[y:y+h,x:x+w]
     bank = cv.bitwise_and(img, img, mask=mask)
 
-    while True and not debug:
-        cv.imshow('output', bank)
-        if cv.waitKey(1) == 27: 
-            cv.destroyAllWindows()
-            break;
+    if debug:
+        display(bank, 'Masked Image')
+    
     return puzzle, bank
  
 def tesseract(puzzle, bank, debug=False) -> list:
@@ -296,8 +294,8 @@ def tesseract(puzzle, bank, debug=False) -> list:
     bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
     
     if debug:
-        display(puzzle)
-        display(bank)
+        display(puzzle, 'Preprocessed Puzzle')
+        display(bank, 'Preprocessed Word Bank')
     
     puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
     bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ textord_heavy_nr=1 '
@@ -321,7 +319,7 @@ def tesseract(puzzle, bank, debug=False) -> list:
         cv.rectangle(puzzle, (x, y), (x + w, y + h), (0, 255, 0), 2)
     
     if debug:
-        display(puzzle)
+        display(puzzle, 'Bounding Box Output')
     
     print('-------------------PUZZLE----------------------')
     #print('/n'.join(rotated_puzzle[0]))
@@ -449,7 +447,6 @@ def main():
 
     if args:
         img = cv.imread(args)
-        #display(img)
     else:
         img = capture_image(cam)
 
@@ -463,14 +460,14 @@ def main():
     x, y, w, h = roi
     img = img[y:y+h, x:x+w]
    
-    display(img)
+    display(img, 'Calibration Output')
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
 
     detected_puzzle, detected_bank = tesseract(puzzle, bank, debug=False)
 
-    permutative_solve(detected_bank)
+    #permutative_solve(detected_bank)
 
     drawer.cleanup()
 
