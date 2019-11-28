@@ -78,5 +78,45 @@ class PuzzleSolver:
         print("words found", word_count)
         return not_found
 
-    def potential_words_solve(self):
-        
+    def potential_words_solve(self, incorrect_words, potential_words):
+
+        retry_bank = []
+        _inbounds = True
+        i = 0
+
+        while _inbounds:
+            retry_bank = []
+            _inbounds = False
+            for words in potential_words:
+
+                if i >= len(words):
+                    continue
+
+                _inbounds = True
+                retry_bank.append(words[i])
+
+            self.load_word_bank(retry_bank)
+            incorrect_retry = self.solve()
+
+            for word in retry_bank:
+                # if the word was found, delete it from potential words list
+                # and delete from the incorrect words list
+                if word not in incorrect_retry:
+                    index = self.get_index(potential_words, word)
+                    incorrect_words.remove(potential_words[index][-1])
+                    potential_words.pop(index)
+
+            # Found every word! Done
+            if len(incorrect_words) == 0:
+                return
+
+            i += 1
+
+    def get_index(self, arr, target):
+
+        for words in enumerate(arr):
+
+            if target in words[1]:
+                return words[0]
+
+        return -1
