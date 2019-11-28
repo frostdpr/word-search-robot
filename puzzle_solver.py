@@ -77,3 +77,6 @@ class PuzzleSolver:
 
         print("words found", word_count)
         return not_found
+
+    def potential_words_solve(self):
+        

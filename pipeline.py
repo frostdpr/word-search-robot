@@ -15,6 +15,64 @@ import jamspell
 
 # pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
 tess_data_windows = "C:\\Program\ Files\\Tesseract-OCR\\tessdata"
+word_swap = {'g':'q', 'i':'l', 'h':'n', 'q':'g', 'l':'i', 'n':'h', 'c':'o', 'o':'c'}
+
+def binary_num(bin_str, max_length):
+
+    l = len(bin_str)
+    num = list(bin_str)
+    i = l-1
+
+    while(i >= 0):
+        if (num[i] == '0'):
+            num[i] = '1'
+            break
+        else: 
+            num[i] = '0'
+        i-=1
+    bin_str = ''.join(num)
+    if (i < 0):
+        bin_str = '1' + bin_str
+
+    if len(bin_str) > max_length:
+
+        bin_str = ""
+
+        for i in range(max_length):
+            bin_str += "0"
+
+    return bin_str
+
+
+def letter_swap(word):
+    letter_locations = []
+    permutations = []
+
+    for char in enumerate(word):
+
+        if char[1] in word_swap.keys():
+            letter_locations.append(char)
+
+    cardinality = len(letter_locations) 
+
+    bin_str = ""
+    for i in range(cardinality):
+        if i == cardinality -1:
+            bin_str += "1"
+            break
+
+        bin_str += "0"
+
+    while "1" in bin_str:
+
+        perm = word
+        for tup in enumerate(letter_locations):
+            if bin_str[tup[0]] == "1":
+                perm = perm[:tup[1][0]] + word_swap[tup[1][1]] + perm[tup[1][0]+1:]
+
+        permutations.append(perm)
+        bin_str = binary_num(bin_str, cardinality)
+    return permutations
 
 
 def capture_image(device, mirror=False, debug=False):
@@ -336,24 +394,60 @@ def permutative_solve(detected_bank, detected_puzzle=None):
         print("\nALL WORDS FOUND!")
         return
 
+    print("-----------------RETRYING WITH SWAPPED CHARACTERS----------------")
+    potential_words = []
+    retry_bank = []
+
+    for word in incorrect_words:
+        permutations = letter_swap(word)
+        permutations.append(word)
+        potential_words.append(permutations)
+
+    print(potential_words)
+
+    _inbounds = True
+    i = 0
+    while _inbounds:
+        retry_bank = []
+        _inbounds = False
+        for words in potential_words:
+            
+            if i >= len(words):
+                continue
+
+            _inbounds = True
+            retry_bank.append(words[i])
+
+        solver.load_word_bank(retry_bank)
+        incorrect_retry = solver.solve()
+
+        for word in retry_bank:
+            # if the word was found, delete it from potential words list
+            # and delete from the incorrect words list
+            if word not in incorrect_retry:
+                index = get_index(potential_words, word)
+                incorrect_words.remove(potential_words[index][-1])
+                potential_words.pop(index)
+
+        # Found every word! Done
+        if len(incorrect_words) == 0:
+            print("\nALL WORDS FOUND!")
+            return
+
+
+        i += 1
 
     corrector = jamspell.TSpellCorrector()
     corrector.LoadLangModel("protos_data/en.bin")
 
     potential_words = []
     retry_bank = []
-    max_candidates = 0
 
     # get word candidates that may be the correct target word, put them in potential_words
     for i in range(len(incorrect_words)):
         candidates = list(corrector.GetCandidates(incorrect_words, i))
-
-        if len(candidates) != 0:
-            max_candidates = (
-                len(candidates) if len(candidates) > max_candidates else max_candidates
-            )
-            candidates.append(incorrect_words[i])
-            potential_words.append(candidates)
+        candidates.append(incorrect_words[i])
+        potential_words.append(candidates)
 
     if len(potential_words) == 0:
         print("\nALL WORDS FOUND!")
@@ -361,13 +455,16 @@ def permutative_solve(detected_bank, detected_puzzle=None):
     else:
         print("Incorrect words", incorrect_words)
 
-    for i in range(max_candidates):
+    _inbounds = True
+    while _inbounds:
         retry_bank = []
+        _inbounds = False
         for words in potential_words:
-            # last word is the original attempt, do not retry it
-            if i >= len(words) - 1:
+            
+            if i >= len(words):
                 continue
 
+            _inbounds = True
             retry_bank.append(words[i])
 
         print("-----------------RETRYING WITH NEW BANK----------------")
@@ -375,15 +472,18 @@ def permutative_solve(detected_bank, detected_puzzle=None):
         solver.load_word_bank(retry_bank)
         incorrect_retry = solver.solve()
 
-        # Found every word! Done
-        if len(incorrect_retry) == 0:
-            print("\nALL WORDS FOUND!")
-            return
-
         for word in retry_bank:
             # if the word was found, delete it from potential words list
             if word not in incorrect_retry:
-                potential_words.pop(get_index(potential_words, word))
+                index = get_index(potential_words, word)
+                incorrect_words.remove(potential_words[index][-1])
+                potential_words.pop(index)
+
+        # Found every word! Done
+        if len(incorrect_words) == 0:
+            print("\nALL WORDS FOUND!")
+            return
+
 
     print("SOME WORDS NOT FOUND:", potential_words)
 
