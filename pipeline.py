@@ -15,6 +15,76 @@ import jamspell
 
 #pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
 tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
+word_swap = {
+    "g": "q",
+    "i": "l",
+    "h": "n",
+    "q": "g",
+    "l": "i",
+    "n": "h",
+    "c": "o",
+    "o": "c",
+    }
+
+
+def binary_num(bin_str, max_length):
+
+    l = len(bin_str)
+    num = list(bin_str)
+    i = l - 1
+
+    while i >= 0:
+        if num[i] == "0":
+            num[i] = "1"
+            break
+        else:
+            num[i] = "0"
+        i -= 1
+
+    bin_str = "".join(num)
+
+    if i < 0:
+        bin_str = "1" + bin_str
+
+    if len(bin_str) > max_length:
+
+        bin_str = ""
+
+        for i in range(max_length):
+            bin_str += "0"
+
+    return bin_str
+
+
+def letter_swap(word):
+    letter_locations = []
+    permutations = []
+
+    for char in enumerate(word):
+        if char[1] in word_swap.keys():
+            letter_locations.append(char)
+
+    cardinality = len(letter_locations)
+
+    bin_str = ""
+    for i in range(cardinality):
+        if i == cardinality - 1:
+            bin_str += "1"
+            break
+
+        bin_str += "0"
+
+    while "1" in bin_str:
+
+        perm = word
+        for tup in enumerate(letter_locations):
+            if bin_str[tup[0]] == "1":
+                perm = perm[: tup[1][0]] + word_swap[tup[1][1]] + perm[tup[1][0] + 1 :]
+
+        permutations.append(perm)
+        bin_str = binary_num(bin_str, cardinality)
+    return permutations
+
 
 def capture_image(device, mirror=False, debug=False):
     
@@ -158,7 +228,7 @@ def segment(img, prob=False, debug=False):
     #return (puzzle_main, puzzle_bank)
     '''
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-    mask = np.ones(img.shape[:2], dtype="uint8") * 255 
+    mask = np.ones(img.shape[:2], dtype='uint8') * 255 
 
     #ret,thresh = cv.threshold(gray,127,255,0)
     canny = cv.Canny(gray, 50, 150, None, 3)
@@ -276,6 +346,78 @@ def parse_args():
     args = parser.parse_args()
 
     return args.image
+
+
+def permutative_solve(detected_bank, detected_puzzle=None):
+
+    detected_bank = [word.lower() for word in detected_bank]
+
+    if detected_puzzle == None:
+        detected_puzzle = []
+        with open('test_searches/word_search.txt', 'r') as f:
+            line = f.readline()
+            while line:
+                detected_puzzle.append(line[:-1].lower())
+                detected_puzzle[-1] = detected_puzzle[-1].split(' ')
+                line = f.readline()
+
+    solver = ps.PuzzleSolver(
+        len(detected_puzzle[0]), len(detected_puzzle), detected_puzzle, detected_bank
+    )
+
+    print('-------------------SOLVING PUZZLE----------------------')
+    incorrect_words = solver.solve()
+
+    if len(incorrect_words) == 0:
+        print('\nALL WORDS FOUND!')
+        return
+
+    print('-----------------RETRYING WITH SWAPPED CHARACTERS----------------')
+    potential_words = []
+
+    for word in incorrect_words:
+        permutations = letter_swap(word)
+        permutations.append(word)
+        potential_words.append(permutations)
+
+    print(potential_words)
+
+    solver.potential_words_solve(incorrect_words, potential_words)
+
+    if len(incorrect_words) == 0:
+        print('\nALL WORDS FOUND!')
+        return
+
+    print('-----------------RETRYING WITH NEW BANK----------------')
+    corrector = jamspell.TSpellCorrector()
+    corrector.LoadLangModel('protos_data/en.bin')
+
+    potential_words = []
+
+    # get word candidates that may be the correct target word, put them in potential_words
+    for i in range(len(incorrect_words)):
+        candidates = list(corrector.GetCandidates(incorrect_words, i))
+        candidates.append(incorrect_words[i])
+        potential_words.append(candidates)
+
+    if len(potential_words) == 0:
+        print(
+            '\nCould not find alternate spellings for the following words: ',
+            incorrect_words,
+        )
+        return
+    else:
+        print('Incorrect words', incorrect_words)
+
+    solver.potential_words_solve(incorrect_words, potential_words)
+
+    # Found every word! Done
+    if len(incorrect_words) == 0:
+        print('\nALL WORDS FOUND!')
+        return
+
+    print('SOME WORDS NOT FOUND:', incorrect_words)
+
 
 def main():
     args = parse_args()
