@@ -3,3 +3,4 @@ pyserial
 numpy
 matplotlib
 pillow
+jamspell
