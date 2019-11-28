@@ -14,7 +14,8 @@ import argparse
 import jamspell
 
 #pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract' # windows only
-tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
+#tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
+
 word_swap = {
     "g": "q",
     "i": "l",
@@ -109,7 +110,10 @@ def display(img):
             cv.destroyAllWindows()
             break;
 
-def calibrate(path, chessboard_rows, chessboard_cols, debug=False):
+def calibrate(img, debug=False):
+    pass
+
+def chessboard_calibrate(path, chessboard_rows, chessboard_cols, debug=False):
 
     calibration_cache = os.path.join(path, 'calibration.txt')
 
@@ -163,9 +167,18 @@ def calibrate(path, chessboard_rows, chessboard_cols, debug=False):
 
     
     params = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+    mean_error = 0
+    _, mtx, dist, rvecs, tvecs = params
+    for i, val in enumerate(objpoints):
+        imgpoints2, _ = cv.projectPoints(val, rvecs[i], tvecs[i], mtx, dist)
+        error = cv.norm(imgpoints[i], imgpoints2, cv.NORM_L2)/len(imgpoints2)
+        mean_error += error
+    print( 'Total calibration error: {}'.format(mean_error/len(objpoints)) )
+
     str_params = '@'.join(map(str,params))
     f = open(calibration_cache, 'w')
     f.write(str_params)
+
     return params
 
 def remove_shadow(img):
@@ -440,13 +453,17 @@ def main():
     else:
         img = capture_image(cam)
 
+    # Camera Calibration
     # param order ret, mtx, dist, rvecs, tvecs
-    params = calibrate('calibration', 6, 8, debug=False)
+    params = chessboard_calibrate('calibration', 6, 8, debug=False)
     ret, mtx, dist, rvecs, tvecs = params
-
-    img = cv.undistort(img, mtx, dist, None, mtx)
+    h, w = img.shape[:2]
+    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+    img = cv.undistort(img, mtx, dist, None, newcameramtx)
+    x, y, w, h = roi
+    img = img[y:y+h, x:x+w]
+   
     display(img)
-
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
