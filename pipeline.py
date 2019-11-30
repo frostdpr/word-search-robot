@@ -104,6 +104,9 @@ def capture_image(device, mirror=False, debug=False):
             
 
 def display(img, title='img'):
+    h, w = img.shape[:2]
+    if h > 1500 or w > 2000:
+        img =  cv.resize(img, (0,0), fx=.25, fy=.25)
     while True:
         cv.imshow(title, img)
         if cv.waitKey(1) == 27: 
@@ -254,15 +257,16 @@ def segment(img, prob=False, debug=False):
         return
     
     for i, cnt in enumerate(contours):
-        if cv.contourArea(cnt)>5000:  #remove small areas like noise etc
+        if cv.contourArea(cnt)>50000:  # only grab large contours
             print('contour:', i)
-            hull = cv.convexHull(cnt) #find the convex hull of contour
+            hull = cv.convexHull(cnt) # find the convex hull of contour
             hull = cv.approxPolyDP(hull,0.1*cv.arcLength(hull,True),True)
             if len(hull)==4:
                 #cv.drawContours(img,[hull],0,(0,255,0),2)
                 x,y,w,h = cv.boundingRect(cnt) # get minimal bounding for contour
                 cv.drawContours(mask, [cnt], -1, 0, -1)
                 break
+            #print(len(hull))
 
     puzzle = img[y:y+h,x:x+w]
     bank = cv.bitwise_and(img, img, mask=mask)
@@ -284,15 +288,35 @@ def tesseract(puzzle, bank, debug=False) -> list:
     #grayscale
     puzzle = cv.cvtColor(puzzle, cv.COLOR_BGR2GRAY)
     bank = cv.cvtColor(bank, cv.COLOR_BGR2GRAY)
-    
+
     #apply otsu binarize
     cv.threshold(src=puzzle, thresh=100, maxval=255, dst=puzzle, type=cv.THRESH_OTSU)
     cv.threshold(src=bank, thresh=95, maxval=255, dst=bank, type=cv.THRESH_OTSU)
     
-    #correct orientation
+    #correct initial orientation
     puzzle = cv.rotate(puzzle, cv.ROTATE_90_CLOCKWISE)
     bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
     
+    #deskew
+    puzzle_not = cv.bitwise_not(puzzle)
+
+    coords = np.column_stack(np.where(puzzle_not > 0))
+    deskew_angle = cv.minAreaRect(coords)[-1]
+    if deskew_angle < -45:
+        deskew_angle = -(90 + deskew_angle)
+    else:
+        deskew_angle = -deskew_angle
+
+    h, w = puzzle_not.shape[:2]
+    center = (w // 2, h // 2)
+
+    deskew_angle = math.ceil(deskew_angle) if deskew_angle > 0 else math.floor(deskew_angle)
+
+    print('deskew', deskew_angle)
+    M = cv.getRotationMatrix2D(center, deskew_angle, 1.0)
+    #display(puzzle, 'puzzle before')
+    puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+    #display(puzzle, 'puzzle after')
     if debug:
         display(puzzle, 'Preprocessed Puzzle')
         display(bank, 'Preprocessed Word Bank')
@@ -316,8 +340,15 @@ def tesseract(puzzle, bank, debug=False) -> list:
     n_boxes = len(d['level'])
     for i in range(n_boxes):
         (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-        cv.rectangle(puzzle, (x, y), (x + w, y + h), (0, 255, 0), 2)
-    
+        #cv.rectangle(puzzle, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        internal_boxes = len(parsed_puzzle[0]) 
+        per_box_width = w // internal_boxes
+        #print('pbw', per_box_width)
+
+        for _ in range(internal_boxes):
+            cv.rectangle(puzzle, (x, y), (x + per_box_width, y + h), (0, 255, 0), 2)
+            x += per_box_width
+
     if debug:
         display(puzzle, 'Bounding Box Output')
     
@@ -339,7 +370,7 @@ def tesseract(puzzle, bank, debug=False) -> list:
     print('-------------------WORD BANK----------------------')
     print(parsed_bank)
     
-    return parsed_puzzle, parsed_bank
+    return parsed_puzzle, parsed_bank, deskew_angle, n_boxes
     
     
 def debug(function, device):
@@ -460,14 +491,12 @@ def main():
     x, y, w, h = roi
     img = img[y:y+h, x:x+w]
    
-    display(img, 'Calibration Output')
+    #display(img, 'Calibration Output')
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
-
-    detected_puzzle, detected_bank = tesseract(puzzle, bank, debug=True)
-
-    permutative_solve(detected_bank)
+    detected_puzzle, detected_bank, _, _ = tesseract(puzzle, bank, debug=True)
+    #permutative_solve(detected_bank)
 
     drawer.cleanup()
 
