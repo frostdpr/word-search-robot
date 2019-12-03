@@ -2,12 +2,11 @@ import draw as drw
 
 jetson_UART = "/dev/ttyTHS1"
 drawer = drw.Drawer(jetson_UART)
-data = None
 
 try:
     test = [(69,99), (152,33)]
     print(drawer.read(1))
-    drawer.send_packet(test)
+    drawer.draw(test)
     
 
 except Exception as e:
