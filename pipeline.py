@@ -149,8 +149,8 @@ def chessboard_calibrate(path, chessboard_rows, chessboard_cols, debug=False):
         print('Processing', filepath)
         img = cv.imread(filepath)
 
-        if debug:
-            img = cv.resize(img, (0,0), fx=.5, fy=.5)
+        #if debug:
+            #img = cv.resize(img, (0,0), fx=.5, fy=.5)
 
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
@@ -387,9 +387,10 @@ def debug(function, device):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--image', help='word puzzle image to be solved', type=str)
+    parser.add_argument('-e', '--everything', help='Runs full end to end pipeline, expecting connection on UART', action='store_true')
     args = parser.parse_args()
 
-    return args.image
+    return args
 
 
 def permutative_solve(detected_bank, detected_puzzle=None):
@@ -468,22 +469,23 @@ def main():
 
     if int(str(pytesseract.get_tesseract_version())[0]) < 4:
         sys.exit('Tesseract 4.0.0 or greater required!')
-   
-    jetson_UART = "/dev/ttyTHS1"
-    drawer = drw.Drawer(jetson_UART)
+    
+    if args.everything:
+        jetson_UART = "/dev/ttyTHS1"
+        drawer = drw.Drawer(jetson_UART)
  
     cam = cv.VideoCapture(0)
     cam.set(3, 1280)  # height
     cam.set(4, 720)  # width
 
-    if args:
-        img = cv.imread(args)
+    if args.image:
+        img = cv.imread(args.image)
     else:
         img = capture_image(cam)
 
     # Camera Calibration
     # param order ret, mtx, dist, rvecs, tvecs
-    params = chessboard_calibrate('calibration', 6, 8, debug=False)
+    params = chessboard_calibrate('calibration', 6, 8, debug=True)
     ret, mtx, dist, rvecs, tvecs = params
     h, w = img.shape[:2]
     newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
@@ -491,21 +493,20 @@ def main():
     x, y, w, h = roi
     img = img[y:y+h, x:x+w]
    
-    #display(img, 'Calibration Output')
+    display(img, 'Calibration Output')
 
     img = remove_shadow(img)
     puzzle, bank = segment(img)
-    '''
-    while(True):
-        drawer.send('00001010'.encode())
-        data = drawer.read()
-        print(data)
-        #drawer.send(data)
-    '''
-       
+    
     detected_puzzle, detected_bank, _, _ = tesseract(puzzle, bank, debug=True)
     #permutative_solve(detected_bank)
-    drawer.cleanup()
+    
+    if args.everything:
+        drawer.read(1)
+    #send commands
+    
+    if args.everything:
+        drawer.cleanup()
 
 if __name__ == '__main__':
     main()
