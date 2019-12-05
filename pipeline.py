@@ -310,7 +310,7 @@ def tesseract(puzzle, bank, debug=False) -> list:
     h, w = puzzle_not.shape[:2]
     center = (w // 2, h // 2)
 
-    deskew_angle = math.ceil(deskew_angle) if deskew_angle > 0 else math.floor(deskew_angle)
+    #deskew_angle = math.ceil(deskew_angle) if deskew_angle > 0 else math.floor(deskew_angle)
 
     print('deskew', deskew_angle)
     M = cv.getRotationMatrix2D(center, deskew_angle, 1.0)
@@ -474,7 +474,7 @@ def main():
         jetson_UART = "/dev/ttyTHS1"
         drawer = drw.Drawer(jetson_UART)
  
-    cam = cv.VideoCapture(0)
+    cam = cv.VideoCapture(0, cv.CAP_V4L2)
     cam.set(3, 1280)  # height
     cam.set(4, 720)  # width
 
@@ -485,7 +485,7 @@ def main():
 
     # Camera Calibration
     # param order ret, mtx, dist, rvecs, tvecs
-    params = chessboard_calibrate('calibration', 6, 8, debug=True)
+    params = chessboard_calibrate('calibration', 6, 8, debug=False)
     ret, mtx, dist, rvecs, tvecs = params
     h, w = img.shape[:2]
     newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
