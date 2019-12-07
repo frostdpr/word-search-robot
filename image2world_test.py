@@ -31,7 +31,7 @@ circles = cv.HoughCircles(gray, cv.HOUGH_GRADIENT, 1, rows / 8,
 
 imagePoints = []
 
-objectPoints = [[ [25.1], [3.1], [0]], [[25.8], [19], [0]], [[4.3], [18.1], [0]], [[4], [3.5], [0]] ]
+objectPoints = [[[25.1],[3.1], [0]], [[25.8],[19],   [0]], [ [4.3],[18.1], [0]], [[4], [3.5], [0]] ]
 
 if circles is not None:
     circles = np.uint16(np.around(circles))
@@ -47,10 +47,25 @@ if circles is not None:
 
 
 objectPoints = np.float32(objectPoints)
+imagePointsCopy = imagePoints.copy()
 imagePoints = np.float32(imagePoints)
-print(imagePoints)
-print(objectPoints)
-print(newcameramtx)
 
-print(cv.solvePnPRansac(objectPoints, imagePoints, newcameramtx, distCoeffs=None, flags = cv.SOLVEPNP_P3P))
-#p.display(img)
+
+ret, rvec, tvec, inliers = cv.solvePnPRansac(objectPoints, imagePoints, newcameramtx, distCoeffs=None, flags = cv.SOLVEPNP_P3P)
+rotationMat = cv.Rodrigues(rvec)
+print(len(rotationMat))
+rotationMatInverse = []
+rotationMatInverse = np.linalg.inv(rotationMat[0])
+print(imagePoints)
+
+rvecinv = cv.Rodrigues(rotationMatInverse)[0]
+
+for i in imagePointsCopy:
+	i.append([0])
+	uvPoint = i
+	print(uvPoint)
+	translated = uvPoint - tvec
+	#print('t',translated)
+	xyz = rvecinv*translated
+	print('x', xyz[0], 'y', xyz[1])
+	#p.display(img)
