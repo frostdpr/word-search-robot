@@ -1,31 +1,56 @@
 import pipeline as p
 import cv2 as cv
+import numpy as np
 
 cam = cv.VideoCapture(0, cv.CAP_V4L2)
 cam.set(3, 1280)  # height
 cam.set(4, 720)  # width
 
-img = p.capture_image(cam)
+img = cv.imread('test_searches/pmmfxv.png')
+#img = p.capture_image(cam)
+params = p.chessboard_calibrate('calibration', 6, 8, debug=False)
+ret, mtx, dist, rvecs, tvecs = params
+h, w = img.shape[:2]
+newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+img = cv.undistort(img, mtx, dist, None, newcameramtx)
+x, y, w, h = roi
+src = img[y:y+h, x:x+w]
+
+#p.display(img, 'Calibration Output')
+
+gray = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
 
 
-gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+gray = cv.medianBlur(gray, 5)
 
 
-canny = cv.Canny(gray, 50, 150, None, 3)
-contours,hier = cv.findContours(canny, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
+rows = gray.shape[0]
+circles = cv.HoughCircles(gray, cv.HOUGH_GRADIENT, 1, rows / 8,
+                           param1=100, param2=30,
+                           minRadius=1, maxRadius=30)
 
-if len(contours) == 0:
-    print("Didn't find any contours!")
-    
+imagePoints = []
 
-for i, cnt in enumerate(contours):
-    if cv.contourArea(cnt)>500:  # only grab large contours
-        print('contour:', i)
-        #cv.drawContours(img,[cnt],0,(0,255,0),2)
-        hull = cv.convexHull(cnt) # find the convex hull of contour
-        hull = cv.approxPolyDP(hull,0.1*cv.arcLength(hull,True),True)
-        cv.drawContours(img,[hull],0,(0,255,0),2)
+objectPoints = [[ [25.1], [3.1], [0]], [[25.8], [19], [0]], [[4.3], [18.1], [0]], [[4], [3.5], [0]] ]
 
-    
+if circles is not None:
+    circles = np.uint16(np.around(circles))
+    for index, i in enumerate(circles[0, :]):
+        center = (i[0], i[1])
 
-p.display(img)
+        imagePoints.append([[i[0]], [i[1]]])
+        # circle center
+        cv.circle(src, center, 1, (0, 255, index*50), 3)
+        # circle outline
+        #radius = i[2]
+        #cv.circle(src, center, radius, (0, 255, 0), 3)
+
+
+objectPoints = np.float32(objectPoints)
+imagePoints = np.float32(imagePoints)
+print(imagePoints)
+print(objectPoints)
+print(newcameramtx)
+
+print(cv.solvePnPRansac(objectPoints, imagePoints, newcameramtx, distCoeffs=None, flags = cv.SOLVEPNP_P3P))
+#p.display(img)
