@@ -57,7 +57,7 @@ imagePoints = np.float32(imagePoints)
 
 
 '''Finding inverse for pinhole camera equation: [x y z] = R [X Y Z] + t'''
-ret, rvec, tvec, inliers = cv.solvePnPRansac(objectPoints, imagePoints, mtx, distCoeffs=dist, flags = cv.SOLVEPNP_ITERATIVE) #cv.SOLVEPNP_P3P)
+ret, rvec, tvec, inliers = cv.solvePnPRansac(objectPoints, imagePoints, mtx, distCoeffs=dist, flags = cv.SOLVEPNP_P3P)#cv.SOLVEPNP_ITERATIVE) #
 rotationMat = cv.Rodrigues(rvec)[0]
 rvec = rvec.T
 rotationMatInverse = np.linalg.inv(rotationMat)
@@ -86,7 +86,7 @@ for index, i in enumerate(imagePointsCopy):
 	print('t1', tempMat, tempMat[2,0])
 	print('t2', tempMat2, tempMat2[2,0])
 	s = tempMat2[2,0]
-	s /= tempMat[2,0] *2.9 # TODO fix scaling param calulation
+	s /= tempMat[2,0] *3 # TODO fix scaling param calulation, should be div by number of calibration points
 	print('scaling factor', s)
 	
 	translated = s*inverse_camera * uvPoint  - tvec
