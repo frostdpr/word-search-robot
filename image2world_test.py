@@ -6,21 +6,22 @@ cam = cv.VideoCapture(0, cv.CAP_V4L2)
 cam.set(3, 1280)  # height
 cam.set(4, 720)  # width
 
-img = cv.imread('test_searches/pmmfxv.png')
-#img = p.capture_image(cam)
+#img = cv.imread('test_searches/pmmfxv.png')
+img = p.capture_image(cam)
 params = p.chessboard_calibrate('calibration', 6, 8, debug=False)
 ret, mtx, dist, rvecs, tvecs = params
+'''
 h, w = img.shape[:2]
 newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
 img = cv.undistort(img, mtx, dist, None, newcameramtx)
 x, y, w, h = roi
 src = img[y:y+h, x:x+w]
-
+'''
 #p.display(img, 'Calibration Output')
 
-
+src = img
 '''Hardcoded to calibration image'''
-objectPoints = [[[25.1],[3.1], [0]], [[25.8],[19],   [0]], [ [4.3],[18.1], [0]], [[4], [3.5], [0]] ]
+objectPoints = [[[25.1],[3.1], [38]], [[25.8],[19], [38]], [ [4.3],[18.1], [38]], [[4], [3.5], [38]] ]
 imagePoints = []
 
 
@@ -39,29 +40,63 @@ if circles is not None:
         cv.circle(src, center, 1, (0, 255, index*50), 3)
         imagePoints.append([[i[0]], [i[1]]])
 
+
+
+objectPoints.sort(key = lambda pointSum: pointSum[0][0] + pointSum[1][0])
+imagePoints.sort(key = lambda pointSum: pointSum[0][0] + pointSum[1][0])
+
+print(objectPoints)
+print(imagePoints)
 objectPoints = np.float32(objectPoints)
 imagePointsCopy = imagePoints.copy()
 imagePoints = np.float32(imagePoints)
 
+
+print('cam', mtx)
+
 '''Finding inverse for pinhole camera equation: [x y z] = R [X Y Z] + t'''
-ret, rvec, tvec, inliers = cv.solvePnPRansac(objectPoints, imagePoints, newcameramtx, distCoeffs=None, flags = cv.SOLVEPNP_P3P)
+ret, rvec, tvec, inliers = cv.solvePnPRansac(objectPoints, imagePoints, mtx, distCoeffs=dist, flags = cv.SOLVEPNP_P3P)
 
-rotationMat = cv.Rodrigues(rvec)
-print(len(rotationMat))
+rotationMat = cv.Rodrigues(rvec)[0]
 
-rotationMatInverse = np.linalg.inv(rotationMat[0])
-
+rotationMatInverse = np.linalg.inv(rotationMat)
 rvecinv = cv.Rodrigues(rotationMatInverse)[0]
 
+inverse_camera = np.linalg.inv(mtx)
+inverse_camera = cv.Rodrigues(inverse_camera)[0]
+print('inverse camera mtx', inverse_camera.shape)
 imagePointsCopy.append([[690],[380]]) #roughly center of paper
 
-for i in imagePointsCopy:
-	i.append([0]) # add fake z coordinate
+print('tvec', tvec)
+
+
+
+for index, i in enumerate(imagePointsCopy):
+	i.append([1]) # add fake z coordinate   
 	uvPoint = i
 	print(uvPoint)
+	'''
+	tempMat = rvecinv * inverse_camera * uvPoint
+	tempMat2 = rvecinv * tvec
+	s = tempMat2[2,0]
+	s /= tempMat[2,0]
+	print(s)
+	'''
+	#translated = s* inverse_camera * uvPoint  - tvec
 	translated = uvPoint - tvec
 	#print('t',translated)
 	xyz = rvecinv*translated
-	print('x', xyz[0][0]*-1-13, 'y', xyz[1][0] - 4.7) #TODO fix origin offset and inverted x coord
+	x = xyz[0][0]
+	y = xyz[1][0]
+	if index == 0:
+	    print('x', x)
+	    offset_x = -x
+	    offset_y = y
+	x =-x - offset_x
+	y -= offset_y  
 
-#p.display(img)
+	
+	out = 'x: {}, y: {}'.format(round(x, 2),round(y, 2))
+	print(out ) #TODO fix origin offset and inverted x coord
+	cv.putText(src, out, (i[0][0], i[1][0]), cv.FONT_HERSHEY_SIMPLEX,  .5, (0,0,255), 2)
+p.display(src)
