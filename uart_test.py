@@ -17,10 +17,10 @@ try:
     ret, mtx, dist, rvecs, tvecs = params
     
     img = p.capture_image(cam) # calibration first
-    xyz = i2w(mtx, dist, objPoints)
+    xyz = i2w.ImageToWorld(mtx, dist, objPoints)
     xyz.locate_keypoints(img)
     
-    
+    xyz.find_inverse_params()
     img = p.capture_image(cam) # puzzle
     
     drawPoints, src = xyz.convert_to_xy(getattr(xyz, 'imagePoints'), img)

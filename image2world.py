@@ -10,7 +10,7 @@ class ImageToWorld:
 		self.imagePoints = []
 
 
-	def locate_keypoints(self, img):
+	def locate_keypoints(self, src):
 
 		gray = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
 		gray = cv.medianBlur(gray, 5)
@@ -34,59 +34,59 @@ class ImageToWorld:
 
 		self.imagePoints = np.float32(self.imagePoints)
 
-		def find_inverse_params(self,):
-			'''Finding inverse for pinhole camera equation: [x y z] = R [X Y Z] + t'''
-			if self.imagePoints == []:
-				print('Locate keypoints first')
-				return
+	def find_inverse_params(self):
+		'''Finding inverse for pinhole camera equation: [x y z] = R [X Y Z] + t'''
+		if self.imagePoints == []:
+			print('Locate keypoints first')
+			return
 
-			ret, rvec, tvec, inliers = cv.solvePnPRansac(self.objectPoints, self.imagePoints, self.mtx, distCoeffs=self.dist, flags = cv.SOLVEPNP_P3P)#cv.SOLVEPNP_ITERATIVE) #
-			rotationMat = cv.Rodrigues(rvec)[0]
-			rvec = rvec.T
-			rotationMatInverse = np.linalg.inv(rotationMat)
-			self.rvecinv = cv.Rodrigues(rotationMatInverse)[0]
+		ret, rvec, tvec, inliers = cv.solvePnPRansac(self.objectPoints, self.imagePoints, self.mtx, distCoeffs=self.dist, flags = cv.SOLVEPNP_P3P)#cv.SOLVEPNP_ITERATIVE) #
+		rotationMat = cv.Rodrigues(rvec)[0]
+		rvec = rvec.T
+		rotationMatInverse = np.linalg.inv(rotationMat)
+		self.rvecinv = cv.Rodrigues(rotationMatInverse)[0]
 
-			inverse_camera = np.linalg.inv(mtx)
-			self.inverse_camera = cv.Rodrigues(inverse_camera)[0].T
+		inverse_camera = np.linalg.inv(mtx)
+		self.inverse_camera = cv.Rodrigues(inverse_camera)[0].T
 
-			self.tvec = tvec.T
+		self.tvec = tvec.T
 
-			print('--------------MATRICES--------------')
-			print('rvecinv', rvecinv.shape)
-			print('tvec', tvec.shape)
-			print('intrinsic camera params', mtx)
-			print('inverse camera mtx', inverse_camera.shape)
-			print()
+		print('--------------MATRICES--------------')
+		print('rvecinv', rvecinv.shape)
+		print('tvec', tvec.shape)
+		print('intrinsic camera params', mtx)
+		print('inverse camera mtx', inverse_camera.shape)
+		print()
 
-		def convert_to_xy(self, imgPoints, src):
-			ret = []
-			for index, i in enumerate(imgPoints):
-				i.append([1]) # add fake z coordinate   
-				uvPoint = i
-				
-				tempMat = self.rvecinv * self.inverse_camera * uvPoint
-				tempMat2 = self.rvecinv * self.tvec
-				print('t1', tempMat, tempMat[2,0])
-				print('t2', tempMat2, tempMat2[2,0])
-				s = tempMat2[2,0]
-				s /= tempMat[2,0] *3 # TODO fix scaling param calulation, should be div by number of calibration points
-				print('scaling factor', s)
-				
-				translated = s* self.inverse_camera * uvPoint  - self.tvec
-				xyz = self.rvecinv * translated
+	def convert_to_xy(self, imgPoints, src):
+		ret = []
+		for index, i in enumerate(imgPoints):
+			i.append([1]) # add fake z coordinate   
+			uvPoint = i
+			
+			tempMat = self.rvecinv * self.inverse_camera * uvPoint
+			tempMat2 = self.rvecinv * self.tvec
+			print('t1', tempMat, tempMat[2,0])
+			print('t2', tempMat2, tempMat2[2,0])
+			s = tempMat2[2,0]
+			s /= tempMat[2,0] *3 # TODO fix scaling param calulation, should be div by number of calibration points
+			print('scaling factor', s)
+			
+			translated = s* self.inverse_camera * uvPoint  - self.tvec
+			xyz = self.rvecinv * translated
 
-				x = xyz[0][0]
-				y = xyz[1][0]
-				if index == 0:
-				    offset_x = -x
-				    offset_y = y
-				x =-x - offset_x
-				y -= offset_y  
+			x = xyz[0][0]
+			y = xyz[1][0]
+			if index == 0:
+			    offset_x = -x
+			    offset_y = y
+			x =-x - offset_x
+			y -= offset_y  
 
-				print('\nimage point', uvPoint)
-				ret.append((2))
-				out = 'x: {}, y: {}'.format(round(x, 2),round(y, 2))
-				print('world coords', out ) 
-				cv.putText(src, out, (i[0][0], i[1][0]), cv.FONT_HERSHEY_SIMPLEX,  .5, (0,255,0), 2)
+			print('\nimage point', uvPoint)
+			ret.append([[x],[y]])
+			out = 'x: {}, y: {}'.format(round(x, 2),round(y, 2))
+			print('world coords', out ) 
+			cv.putText(src, out, (i[0][0], i[1][0]), cv.FONT_HERSHEY_SIMPLEX,  .5, (0,255,0), 2)
 
-			return ret, src
+		return ret, src
