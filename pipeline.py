@@ -10,6 +10,7 @@ import pytesseract
 import numpy as np
 import puzzle_solver as ps
 import draw as drw
+import image2world as i2w
 import argparse
 import jamspell
 
@@ -509,7 +510,7 @@ def main():
     img = img[y:y+h, x:x+w]
    
     display(img, 'Calibration Output')
-
+    
     img = remove_shadow(img)
     puzzle, bank, x_offset, y_offset = segment(img)
     
