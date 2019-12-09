@@ -27,6 +27,8 @@ word_swap = {
     "o": "c",
     }
 
+original_puzzle = None
+
 
 def binary_num(bin_str, max_length):
 
@@ -274,9 +276,12 @@ def segment(img, prob=False, debug=False):
     if debug:
         display(bank, 'Masked Image')
     
-    return puzzle, bank
+    return puzzle, bank, x, y
  
-def tesseract(puzzle, bank, debug=False) -> list:
+def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
+    global original_puzzle
+
+    original_puzzle = puzzle
     #resize
     puzzle = cv.resize(puzzle, (0,0), fx=3, fy=3)
     bank = cv.resize(bank, (0,0), fx=3, fy=3)
@@ -335,35 +340,25 @@ def tesseract(puzzle, bank, debug=False) -> list:
         if len(i.strip()) > 2:
             parsed_bank.extend(i.strip().split())
     
-    #quick and messy bounding boxes
+    # quick and messy bounding boxes
     # d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
     boxes = pytesseract.image_to_boxes(puzzle, config = puzzle_config)
     #n_boxes = len(d['level'])
 
+    letters_per_row = len(parsed_puzzle[0])
+    character_coords = []
+    i = 0
+
     for b in boxes.splitlines():
+        if i % 15 == 0:
+            character_coords.append([])
+        # tuple with top left and bottom right coords
         b = b.split(' ')
+        bounds = (int(b[1]),h - int(b[2]),int(b[3]),h - int(b[4]))
+        character_coords[-1].append( [(int(bounds[2]) + int(bounds[0]))//2, (int(bounds[1]) + int(bounds[3]))//2] )
+        character_coords[-1][-1][0],character_coords[-1][-1][1] = character_coords[-1][-1][1]//3 + x_offset, character_coords[-1][-1][1]//3 + y_offset
         cv.rectangle(puzzle, (int(b[1]), h - int(b[2])), (int(b[3]), h - int(b[4])), (0,255,0), 2)
-
-    # for i in range(n_boxes):
-    #     (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-    #     internal_boxes = len(parsed_puzzle[0]) -1
-    #     x -= int(2.5*internal_boxes)
-    #     w += int(2.5*internal_boxes)
-    #     cv.rectangle(puzzle, (x, y), (x + w + 2*internal_boxes, y + h), (0, 255, 0), 2)
-    #     per_box_width = w // internal_boxes
-    #     #print('pbw', per_box_width)
-
-    #     # for j in range(internal_boxes):
-    #     #     print(y,h)
-    #     #     char_center = ((x+2*internal_boxes + (j+1)*per_box_width//2)//3, (y+h//2)//3)
-    #     #     print(char_center)
-    #     #     cv.circle(puzzle, char_center, per_box_width//3, (255,255,255), 2)
-
-    #     for _ in range(internal_boxes):
-    #         # print(h*per_box_width)
-    #         if h*per_box_width < 20000:
-    #             cv.rectangle(puzzle, (x, y), (x + per_box_width, y + h), (0, 255, 0), 2)
-    #             x += per_box_width
+        i += 1
 
     if debug:
         display(puzzle, 'Bounding Box Output') 
@@ -382,11 +377,15 @@ def tesseract(puzzle, bank, debug=False) -> list:
         print('')
     '''
             
+    for i in range(len(parsed_puzzle)):
+        if ' ' in parsed_puzzle[i]:
+            parsed_puzzle[i] = parsed_puzzle[i].replace(' ', 'I')
+
     print(parsed_puzzle)
     print('-------------------WORD BANK----------------------')
     print(parsed_bank)
     
-    return parsed_puzzle, parsed_bank, deskew_angle, n_boxes
+    return parsed_puzzle, parsed_bank, deskew_angle
     
     
 def debug(function, device):
@@ -512,9 +511,9 @@ def main():
     display(img, 'Calibration Output')
 
     img = remove_shadow(img)
-    puzzle, bank = segment(img)
+    puzzle, bank, x_offset, y_offset = segment(img)
     
-    detected_puzzle, detected_bank, _, _ = tesseract(puzzle, bank, debug=True)
+    detected_puzzle, detected_bank, _ = tesseract(puzzle, bank, x_offset, y_offset, debug=True)
     #permutative_solve(detected_bank)
     
     if args.everything:
