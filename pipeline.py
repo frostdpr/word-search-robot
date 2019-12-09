@@ -336,21 +336,37 @@ def tesseract(puzzle, bank, debug=False) -> list:
             parsed_bank.extend(i.strip().split())
     
     #quick and messy bounding boxes
-    d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
-    n_boxes = len(d['level'])
-    for i in range(n_boxes):
-        (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-        #cv.rectangle(puzzle, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        internal_boxes = len(parsed_puzzle[0]) 
-        per_box_width = w // internal_boxes
-        #print('pbw', per_box_width)
+    # d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
+    boxes = pytesseract.image_to_boxes(puzzle, config = puzzle_config)
+    #n_boxes = len(d['level'])
 
-        for _ in range(internal_boxes):
-            cv.rectangle(puzzle, (x, y), (x + per_box_width, y + h), (0, 255, 0), 2)
-            x += per_box_width
+    for b in boxes.splitlines():
+        b = b.split(' ')
+        cv.rectangle(puzzle, (int(b[1]), h - int(b[2])), (int(b[3]), h - int(b[4])), (0,255,0), 2)
+
+    # for i in range(n_boxes):
+    #     (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
+    #     internal_boxes = len(parsed_puzzle[0]) -1
+    #     x -= int(2.5*internal_boxes)
+    #     w += int(2.5*internal_boxes)
+    #     cv.rectangle(puzzle, (x, y), (x + w + 2*internal_boxes, y + h), (0, 255, 0), 2)
+    #     per_box_width = w // internal_boxes
+    #     #print('pbw', per_box_width)
+
+    #     # for j in range(internal_boxes):
+    #     #     print(y,h)
+    #     #     char_center = ((x+2*internal_boxes + (j+1)*per_box_width//2)//3, (y+h//2)//3)
+    #     #     print(char_center)
+    #     #     cv.circle(puzzle, char_center, per_box_width//3, (255,255,255), 2)
+
+    #     for _ in range(internal_boxes):
+    #         # print(h*per_box_width)
+    #         if h*per_box_width < 20000:
+    #             cv.rectangle(puzzle, (x, y), (x + per_box_width, y + h), (0, 255, 0), 2)
+    #             x += per_box_width
 
     if debug:
-        display(puzzle, 'Bounding Box Output')
+        display(puzzle, 'Bounding Box Output') 
     
     print('-------------------PUZZLE----------------------')
     #print('/n'.join(rotated_puzzle[0]))
