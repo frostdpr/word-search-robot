@@ -28,8 +28,6 @@ word_swap = {
     "o": "c",
     }
 
-original_puzzle = None
-
 
 def binary_num(bin_str, max_length):
 
@@ -260,7 +258,7 @@ def segment(img, prob=False, debug=False):
         return
     
     for i, cnt in enumerate(contours):
-        if cv.contourArea(cnt)>50000:  # only grab large contours
+        if cv.contourArea(cnt)>10000:  # only grab large contours
             print('contour:', i)
             hull = cv.convexHull(cnt) # find the convex hull of contour
             hull = cv.approxPolyDP(hull,0.1*cv.arcLength(hull,True),True)
@@ -280,7 +278,6 @@ def segment(img, prob=False, debug=False):
     return puzzle, bank, x, y
  
 def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
-    global original_puzzle
 
     original_puzzle = puzzle
     #resize
@@ -300,8 +297,8 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     cv.threshold(src=bank, thresh=95, maxval=255, dst=bank, type=cv.THRESH_OTSU)
     
     #correct initial orientation
-    puzzle = cv.rotate(puzzle, cv.ROTATE_90_CLOCKWISE)
-    bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
+    #puzzle = cv.rotate(puzzle, cv.ROTATE_90_CLOCKWISE)
+    #bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
     
     #deskew
     puzzle_not = cv.bitwise_not(puzzle)
@@ -357,6 +354,7 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
         b = b.split(' ')
         bounds = (int(b[1]),h - int(b[2]),int(b[3]),h - int(b[4]))
         character_coords[-1].append( [(int(bounds[2]) + int(bounds[0]))//2, (int(bounds[1]) + int(bounds[3]))//2] )
+        #cv.circle(puzzle, (character_coords[-1][-1][0], character_coords[-1][-1][1]), 8, (0,0,0), 2)
         character_coords[-1][-1][0],character_coords[-1][-1][1] = character_coords[-1][-1][1]//3 + x_offset, character_coords[-1][-1][1]//3 + y_offset
         cv.rectangle(puzzle, (int(b[1]), h - int(b[2])), (int(b[3]), h - int(b[4])), (0,255,0), 2)
         i += 1
