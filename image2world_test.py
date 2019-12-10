@@ -59,7 +59,7 @@ def uv_to_xy(img, params, uvPoints, debug = False):
     rows = gray.shape[0]
     circles = cv.HoughCircles(gray, cv.HOUGH_GRADIENT, 1, rows / 8,
                                param1=100, param2=30,
-                               minRadius=8, maxRadius=50)
+                               minRadius=20, maxRadius=50)
 
     if circles is not None:
         circles = np.uint16(np.around(circles))

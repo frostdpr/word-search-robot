@@ -260,21 +260,22 @@ def segment(img, prob=False, debug=False):
     
     for i, cnt in enumerate(contours):
         if cv.contourArea(cnt)>50000:  # only grab large contours
-            print('contour:', i)
+            print(cv.contourArea(cnt))
             hull = cv.convexHull(cnt) # find the convex hull of contour
             hull = cv.approxPolyDP(hull,0.1*cv.arcLength(hull,True),True)
             if len(hull)==4:
-                #cv.drawContours(img,[hull],0,(0,255,0),2)
+                cv.drawContours(img,[hull],0,(0,255,0),2)
                 x,y,w,h = cv.boundingRect(cnt) # get minimal bounding for contour
                 cv.drawContours(mask, [cnt], -1, 0, -1)
                 break
             #print(len(hull))
-
+    
 
     puzzle = img[y:y+h,x:x+w]
     bank = cv.bitwise_and(img, img, mask=mask)
 
     if debug:
+        display(img)
         display(bank, 'Masked Image')
     
     return puzzle, bank, x, y
@@ -355,7 +356,7 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
         # tuple with top left and bottom right coords
         b = b.split(' ')
         bounds = (int(b[1]),h - int(b[2]),int(b[3]),h - int(b[4]))
-        character_coords[-1].append( [(int(bounds[2]) + int(bounds[0]))//2, (int(bounds[1]) + int(bounds[3]))//2] )
+        character_coords[-1].append( [(int(bounds[2]) + int(bounds[0]))//2, (int(bounds[1]) + int(bounds[3]))//2, b[0]] )
         #cv.circle(puzzle, (character_coords[-1][-1][0], character_coords[-1][-1][1]), 8, (0,0,0), 2)
         #character_coords[-1][-1][0],character_coords[-1][-1][1] = character_coords[-1][-1][1]//3 + x_offset, character_coords[-1][-1][1]//3 + y_offset
         cv.rectangle(puzzle, (int(b[1]), h - int(b[2])), (int(b[3]), h - int(b[4])), (0,255,0), 2)
@@ -366,19 +367,10 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     
     for x in range(len(character_coords[0])):
         for y in range(len(character_coords)):
-            upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]] = 100
+            upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]] = (100, character_coords[x][y][2])
             #print(character_coords[x][y][0], character_coords[x][y][1], upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]])
 
     print('-------------------ROTATING----------------------')
-    print(len(character_coords[0]), len(character_coords))
-    
-    print(np.nonzero(upright_puzzle))
-
-    #for y in range(upright_puzzle.shape[0]):
-    #    for x in range(upright_puzzle.shape[1]):
-    #        if upright_puzzle[y][x] == 1:
-    #            cv.circle(puzzle, (x, y), 8, (0,0,0), 2)
-    print(upright_puzzle.shape)
     
     #recalculate center for copy of image
     h, w = upright_puzzle.shape[:2]
@@ -387,23 +379,24 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     M = cv.getRotationMatrix2D(center, 90 - deskew_angle, 1.0)
     #rotate centers of characters
     puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
-    upright_puzzle = cv.warpAffine(upright_puzzle, M, (w, h), flags=cv.INTER_NEAREST, borderMode=cv.BORDER_REPLICATE)
-    #upright_puzzle = nms(upright_puzzle, 5)
-    nonzero_arr = np.nonzero(upright_puzzle)
+    length = 0
+    for j in range(len(upright_puzzle)):
+        for i in range(len(upright_puzzle[j])):
+            if(upright_puzzle[j][i][0]>0):
+                orig = (j,i)
+                new = rotatepoint(center, orig, 90-deskew_angle)
+                cv.circle(puzzle, (new[1], new[0]), 8, (0,0,0), 2)
+                length+=1
+                #new = cv.warpAffine(orig, M, (1, 2), flags=cv.INTER_NEAREST, borderMode=cv.BORDER_REPLICATE)
+                #print('orig:', orig, 'new:', new)
+    #upright_puzzle = cv.warpAffine(upright_puzzle, M, (w, h), flags=cv.INTER_NEAREST, borderMode=cv.BORDER_REPLICATE)
+    #nonzero_arr = np.nonzero(upright_puzzle)
+    print(length)
+    #print((nonzero_arr))
+    #print(len(nonzero_arr[0]))
     
-    print(len(upright_puzzle[nonzero_arr]))
-    print('max')
-    print(np.amax(upright_puzzle[nonzero_arr]))
-    print('min')
-    print(np.amin(upright_puzzle[nonzero_arr]))
-    
-    for i in range(len(nonzero_arr[0])):
-        cv.circle(puzzle, (nonzero_arr[1][i], nonzero_arr[0][i]), 8, (0,0,0), 2)
-
-    #for y in range(upright_puzzle.shape[0]):
-    #    for x in range(upright_puzzle.shape[1]):
-    #        if upright_puzzle[y][x] != 0:
-    #            cv.circle(puzzle, (x, y), 8, (0,0,0), 2)
+    #for i in range(len(nonzero_arr[0])):
+    #    cv.circle(puzzle, (nonzero_arr[1][i], nonzero_arr[0][i]), 8, (0,0,0), 2)
 
     character_coords = np.array(character_coords)
 
@@ -534,39 +527,13 @@ def permutative_solve(detected_bank, detected_puzzle=None):
 
     print('SOME WORDS NOT FOUND:', incorrect_words)
 
-def nms(RMap,box):
-    # Non-max supression and thresholding function.
-    print(RMap.shape)
-    RMap = np.copy(RMap)
-    height, width = RMap.shape
- 
-    offset = box
-    print(height-offset, width-offset)
-    for y in range(0, height-offset, offset):
-        for x in range(0, width-offset, offset ):
-            #print('indexes:', y-offset, 'to', y+1+offset ,':', x-offset, 'to', x+1+offset)
-            box = RMap[y:y+offset+1, x:x+offset+1]
-       
- 
-            try:
-                #local_max = np.amax(box)
-                max_x , max_y = np.unravel_index(box.argmax(), box.shape)
-                b_height , b_width = box.shape          
-                #print(y, y + b_height -1)
-                for j in range(y, y + offset+2):
-                    for i in range(x, x + offset+2):
-                        if j != max_y + y or i != max_x + x and y != 0:
-                            RMap[j][i] = 0
-           
-            except IndexError:
-                print(j,i)
-            except ValueError:
-                pass
-         
- 
-    print(RMap.shape)
-    return RMap
+def rotatepoint(center, point, ang):
+    trans_point = (point[0] - center[1], point[1] - center[0])
+    x = math.cos((ang*2*math.pi)/180)*trans_point[1]+math.sin((ang*2*math.pi)/180)*trans_point[0]
+    y = math.cos((ang*2*math.pi)/180)*trans_point[0]-math.sin((ang*2*math.pi)/180)*trans_point[1]
+    return (int(round(y,0))+center[1],int(round(x,0))+center[0])
     
+
 def main():
     args = parse_args()
 
@@ -588,19 +555,27 @@ def main():
     
     # Camera Calibration
     # param order ret, mtx, dist, rvecs, tvecs
-    params = chessboard_calibrate('calibration', 6, 8, debug=False)
-    ret, mtx, dist, rvecs, tvecs = params
-    h, w = img.shape[:2]
-    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
-    img = cv.undistort(img, mtx, dist, None, newcameramtx)
-    x, y, w, h = roi
-    img = img[y:y+h, x:x+w]
+    if not args.image:
+        params = chessboard_calibrate('calibration', 6, 8, debug=False)
+        ret, mtx, dist, rvecs, tvecs = params
+        h, w = img.shape[:2]
+        newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+        img = cv.undistort(img, mtx, dist, None, newcameramtx)
+        x, y, w, h = roi
+        img = img[y:y+h, x:x+w]
    
-    display(img, 'Calibration Output')
+        display(img, 'Calibration Output')
     
     
     xyz = capture_image(cam)
-    display(i2wt.uv_to_xy(xyz, params,[],True)[0])
+    xyz_params = chessboard_calibrate('calibration_dummy', 6, 8, debug=False)
+    ret, mtx, dist, rvecs, tvecs = xyz_params
+    h, w = img.shape[:2]
+    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+    xyz = cv.undistort(xyz, mtx, dist, None, newcameramtx)
+    x, y, w, h = roi
+    xyz = xyz[y:y+h, x:x+w]
+    display(i2wt.uv_to_xy(xyz, xyz_params,[],True)[0])
     
     img = remove_shadow(img)
     puzzle, bank, x_offset, y_offset = segment(img)
