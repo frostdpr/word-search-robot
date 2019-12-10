@@ -399,6 +399,20 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     #        if upright_puzzle[y][x] != 0:
     #            cv.circle(puzzle, (x, y), 8, (0,0,0), 2)
 
+    character_coords = np.array(character_coords)
+
+    deskew_matrix = M[:,:2]
+
+
+    for i in range(len(character_coords[0])):
+        for j in range(len(character_coords[0])):
+            character_coords[i][j] = np.matmul(deskew_matrix, character_coords[i][j]).tolist()#matrix_mult(character_coords[i][j], deskew_matrix)
+
+    print('-------------------ROTATING----------------------')
+
+    character_coords = character_coords.tolist()
+    print(character_coords)
+
     if debug:
         display(puzzle, 'Bounding Box Output') 
     
@@ -425,8 +439,8 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     print(parsed_bank)
     
     return parsed_puzzle, parsed_bank, deskew_angle
-    
-    
+
+
 def debug(function, device):
 
     while True:
