@@ -11,6 +11,7 @@ import numpy as np
 import puzzle_solver as ps
 import draw as drw
 import image2world as i2w
+import image2world_test as i2wt
 import argparse
 import jamspell
 
@@ -258,7 +259,7 @@ def segment(img, prob=False, debug=False):
         return
     
     for i, cnt in enumerate(contours):
-        if cv.contourArea(cnt)>10000:  # only grab large contours
+        if cv.contourArea(cnt)>50000:  # only grab large contours
             print('contour:', i)
             hull = cv.convexHull(cnt) # find the convex hull of contour
             hull = cv.approxPolyDP(hull,0.1*cv.arcLength(hull,True),True)
@@ -268,6 +269,7 @@ def segment(img, prob=False, debug=False):
                 cv.drawContours(mask, [cnt], -1, 0, -1)
                 break
             #print(len(hull))
+
 
     puzzle = img[y:y+h,x:x+w]
     bank = cv.bitwise_and(img, img, mask=mask)
@@ -297,8 +299,8 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     cv.threshold(src=bank, thresh=95, maxval=255, dst=bank, type=cv.THRESH_OTSU)
     
     #correct initial orientation
-    #puzzle = cv.rotate(puzzle, cv.ROTATE_90_CLOCKWISE)
-    #bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
+    puzzle = cv.rotate(puzzle, cv.ROTATE_90_CLOCKWISE)
+    bank = cv.rotate(bank, cv.ROTATE_90_CLOCKWISE)
     
     #deskew
     puzzle_not = cv.bitwise_not(puzzle)
@@ -355,9 +357,47 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
         bounds = (int(b[1]),h - int(b[2]),int(b[3]),h - int(b[4]))
         character_coords[-1].append( [(int(bounds[2]) + int(bounds[0]))//2, (int(bounds[1]) + int(bounds[3]))//2] )
         #cv.circle(puzzle, (character_coords[-1][-1][0], character_coords[-1][-1][1]), 8, (0,0,0), 2)
-        character_coords[-1][-1][0],character_coords[-1][-1][1] = character_coords[-1][-1][1]//3 + x_offset, character_coords[-1][-1][1]//3 + y_offset
+        #character_coords[-1][-1][0],character_coords[-1][-1][1] = character_coords[-1][-1][1]//3 + x_offset, character_coords[-1][-1][1]//3 + y_offset
         cv.rectangle(puzzle, (int(b[1]), h - int(b[2])), (int(b[3]), h - int(b[4])), (0,255,0), 2)
         i += 1
+        
+    upright_puzzle = np.zeros(puzzle.shape, dtype=np.uint8)
+    #character_coords = np.array(character_coords)
+    
+    for x in range(len(character_coords[0])):
+        for y in range(len(character_coords)):
+            upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]] = 1
+            #print(character_coords[x][y][0], character_coords[x][y][1], upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]])
+
+    print('-------------------ROTATING----------------------')
+    print(len(character_coords[0]), len(character_coords))
+    
+    print(np.nonzero(upright_puzzle))
+
+    #for y in range(upright_puzzle.shape[0]):
+    #    for x in range(upright_puzzle.shape[1]):
+    #        if upright_puzzle[y][x] == 1:
+    #            cv.circle(puzzle, (x, y), 8, (0,0,0), 2)
+    print(upright_puzzle.shape)
+    
+    #recalculate center for copy of image
+    h, w = upright_puzzle.shape[:2]
+    center = (w // 2, h // 2)
+    #undo rotation and deskew rotation done previously
+    M = cv.getRotationMatrix2D(center, 90 - deskew_angle, 1.0)
+    #rotate centers of characters
+    puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+    upright_puzzle = cv.warpAffine(upright_puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+    
+    nonzero_arr = np.nonzero(upright_puzzle)
+    
+    for i in range(len(nonzero_arr[0])):
+        cv.circle(puzzle, (nonzero_arr[1][i], nonzero_arr[0][i]), 8, (0,0,0), 2)
+
+    #for y in range(upright_puzzle.shape[0]):
+    #    for x in range(upright_puzzle.shape[1]):
+    #        if upright_puzzle[y][x] != 0:
+    #            cv.circle(puzzle, (x, y), 8, (0,0,0), 2)
 
     if debug:
         display(puzzle, 'Bounding Box Output') 
@@ -491,12 +531,12 @@ def main():
     cam = cv.VideoCapture(0, cv.CAP_V4L2)
     cam.set(3, 1280)  # height
     cam.set(4, 720)  # width
-
+    
     if args.image:
         img = cv.imread(args.image)
     else:
         img = capture_image(cam)
-
+    
     # Camera Calibration
     # param order ret, mtx, dist, rvecs, tvecs
     params = chessboard_calibrate('calibration', 6, 8, debug=False)
@@ -509,11 +549,15 @@ def main():
    
     display(img, 'Calibration Output')
     
+    
+    xyz = capture_image(cam)
+    display(i2wt.uv_to_xy(xyz, params,[],True)[0])
+    
     img = remove_shadow(img)
     puzzle, bank, x_offset, y_offset = segment(img)
     
     detected_puzzle, detected_bank, _ = tesseract(puzzle, bank, x_offset, y_offset, debug=True)
-    #permutative_solve(detected_bank)
+    '''#permutative_solve(detected_bank)
     
     if args.everything:
         drawer.read(1)
@@ -521,6 +565,6 @@ def main():
     
     if args.everything:
         drawer.cleanup()
-
+    '''
 if __name__ == '__main__':
     main()
