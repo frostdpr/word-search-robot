@@ -3,11 +3,11 @@ import cv2 as cv
 import numpy as np
 
 cam = cv.VideoCapture(0, cv.CAP_V4L2)
-cam.set(3, 1280)  # height
-cam.set(4, 720)  # width
+cam.set(3, 1920)  # height
+cam.set(4, 1080)  # width
 
-img = cv.imread('test_searches/pmmfxv.png')
-#img = p.capture_image(cam)
+#img = cv.imread('test_searches/pmmfxv.png')
+img = p.capture_image(cam)
 params = p.chessboard_calibrate('calibration', 6, 8, debug=False)
 ret, mtx, dist, rvecs, tvecs = params
 '''
@@ -21,7 +21,7 @@ src = img[y:y+h, x:x+w]
 
 src = img
 '''Hardcoded to calibration image'''
-objectPoints = [[[25.1],[3.1], [0]], [[25.8],[19], [0]], [ [4.3],[18.1], [0]], [[4], [3.5], [0]] ]
+objectPoints = [[[0],[23.1], [0]], [[26.0],[22.9], [0]], [ [26.5],[0.7], [0]], [[0], [0], [0]], [[13.5], [11.8], [0]] ]
 imagePoints = []
 
 
@@ -31,7 +31,7 @@ gray = cv.medianBlur(gray, 5)
 rows = gray.shape[0]
 circles = cv.HoughCircles(gray, cv.HOUGH_GRADIENT, 1, rows / 8,
                            param1=100, param2=30,
-                           minRadius=1, maxRadius=30)
+                           minRadius=1, maxRadius=50)
 
 if circles is not None:
     circles = np.uint16(np.around(circles))
@@ -57,7 +57,9 @@ imagePoints = np.float32(imagePoints)
 
 
 '''Finding inverse for pinhole camera equation: [x y z] = R [X Y Z] + t'''
-ret, rvec, tvec, inliers = cv.solvePnPRansac(objectPoints, imagePoints, mtx, distCoeffs=dist, flags = cv.SOLVEPNP_P3P)#cv.SOLVEPNP_ITERATIVE) #
+print("obj points", objectPoints, "imagePoints",  imagePoints, "mtx", mtx)
+ret, rvec, tvec, fatt = cv.solvePnPRansac(objectPoints, imagePoints, mtx, distCoeffs=dist, flags = cv.SOLVEPNP_ITERATIVE) #cv.SOLVEPNP_P3P)#
+print("rvec", rvec)
 rotationMat = cv.Rodrigues(rvec)[0]
 rvec = rvec.T
 rotationMatInverse = np.linalg.inv(rotationMat)
@@ -76,35 +78,48 @@ print('intrinsic camera params', mtx)
 print('inverse camera mtx', inverse_camera.shape)
 print()
 
-
+point_coor = []
 for index, i in enumerate(imagePointsCopy):
-	i.append([1]) # add fake z coordinate   
-	uvPoint = i
-	
-	tempMat = rvecinv * inverse_camera * uvPoint
-	tempMat2 = rvecinv * tvec
-	print('t1', tempMat, tempMat[2,0])
-	print('t2', tempMat2, tempMat2[2,0])
-	s = tempMat2[2,0]
-	s /= tempMat[2,0] *3 # TODO fix scaling param calulation, should be div by number of calibration points
-	print('scaling factor', s)
-	
-	translated = s*inverse_camera * uvPoint  - tvec
-	#translated = uvPoint - tvec
-	#print('t',translated)
-	xyz = rvecinv*translated
-	x = xyz[0][0]
-	y = xyz[1][0]
-	if index == 0:
-	    offset_x = -x
-	    offset_y = y
-	x =-x - offset_x
-	y -= offset_y  
+        i.append([1]) # add fake z coordinate   
+        uvPoint = i
+        
+        tempMat = rvecinv * inverse_camera * uvPoint
+        tempMat2 = rvecinv * tvec
+        print('t1', tempMat, tempMat[2,0])
+        print('t2', tempMat2, tempMat2[2,0])
+        s = tempMat2[2,0]
+        s /= tempMat[2,0] #*3 TODO fix scaling param calulation, should be div by number of calibration points
+        print('scaling factor', s)
+        
+        translated = s*inverse_camera * uvPoint  - tvec
+        #translated = uvPoint - tvec
+        #print('t',translated)
+        xyz = rvecinv*translated
+        x = xyz[0][0]
+        y = xyz[1][0]
+        if index == 0:
+            offset_x = x
+            offset_y = y 
+        x -= offset_x
+        y -= offset_y
+        if index == 1:
+            yscale = y/23.1
+        if index == 3:
+            xscale = x/26.25  
+        if index == 4:
+            print(x)
+            xscale = 0.5*(xscale + x/26)
+            yscale = 0.5*(yscale + y/22.9)
+            print(xscale)
+        
+        
 
-		
-	print('\nimage point', uvPoint)
-
-	out = 'x: {}, y: {}'.format(round(x, 2),round(y, 2))
-	print('world coords', out ) 
-	cv.putText(src, out, (i[0][0], i[1][0]), cv.FONT_HERSHEY_SIMPLEX,  .5, (0,255,0), 2)
+        point_coor.append((x,y))  
+        print('\nimage point', uvPoint)
+for index,i in enumerate(point_coor):
+        x = i[0]/xscale
+        y = i[1]/yscale
+        out = 'x: {}, y: {}'.format(round(x, 2),round(y, 2))
+        print('world coords', out ) 
+        cv.putText(src, out, (imagePointsCopy[index][0][0], imagePointsCopy[index][1][0]), cv.FONT_HERSHEY_SIMPLEX,  .5, (0,255,0), 2)
 p.display(src)
