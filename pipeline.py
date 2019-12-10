@@ -366,7 +366,7 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     
     for x in range(len(character_coords[0])):
         for y in range(len(character_coords)):
-            upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]] = 1
+            upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]] = 100
             #print(character_coords[x][y][0], character_coords[x][y][1], upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]])
 
     print('-------------------ROTATING----------------------')
@@ -387,9 +387,15 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     M = cv.getRotationMatrix2D(center, 90 - deskew_angle, 1.0)
     #rotate centers of characters
     puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
-    upright_puzzle = cv.warpAffine(upright_puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
-    
+    upright_puzzle = cv.warpAffine(upright_puzzle, M, (w, h), flags=cv.INTER_NEAREST, borderMode=cv.BORDER_REPLICATE)
+    #upright_puzzle = nms(upright_puzzle, 5)
     nonzero_arr = np.nonzero(upright_puzzle)
+    
+    print(len(upright_puzzle[nonzero_arr]))
+    print('max')
+    print(np.amax(upright_puzzle[nonzero_arr]))
+    print('min')
+    print(np.amin(upright_puzzle[nonzero_arr]))
     
     for i in range(len(nonzero_arr[0])):
         cv.circle(puzzle, (nonzero_arr[1][i], nonzero_arr[0][i]), 8, (0,0,0), 2)
@@ -408,10 +414,7 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
         for j in range(len(character_coords[0])):
             character_coords[i][j] = np.matmul(deskew_matrix, character_coords[i][j]).tolist()#matrix_mult(character_coords[i][j], deskew_matrix)
 
-    print('-------------------ROTATING----------------------')
-
     character_coords = character_coords.tolist()
-    print(character_coords)
 
     if debug:
         display(puzzle, 'Bounding Box Output') 
@@ -421,7 +424,7 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     
     #clean_puzzle = rotated_puzzle[0]
     '''
-    for j in range(len(clean_puzzle[0][0])):		
+    for j in range(len(clean_puzzle[0][0])):            
         for idx, item in enumerate(clean_puzzle):
             try:
                 print(clean_puzzle[idx][0][j], end='')
@@ -531,7 +534,39 @@ def permutative_solve(detected_bank, detected_puzzle=None):
 
     print('SOME WORDS NOT FOUND:', incorrect_words)
 
-
+def nms(RMap,box):
+    # Non-max supression and thresholding function.
+    print(RMap.shape)
+    RMap = np.copy(RMap)
+    height, width = RMap.shape
+ 
+    offset = box
+    print(height-offset, width-offset)
+    for y in range(0, height-offset, offset):
+        for x in range(0, width-offset, offset ):
+            #print('indexes:', y-offset, 'to', y+1+offset ,':', x-offset, 'to', x+1+offset)
+            box = RMap[y:y+offset+1, x:x+offset+1]
+       
+ 
+            try:
+                #local_max = np.amax(box)
+                max_x , max_y = np.unravel_index(box.argmax(), box.shape)
+                b_height , b_width = box.shape          
+                #print(y, y + b_height -1)
+                for j in range(y, y + offset+2):
+                    for i in range(x, x + offset+2):
+                        if j != max_y + y or i != max_x + x and y != 0:
+                            RMap[j][i] = 0
+           
+            except IndexError:
+                print(j,i)
+            except ValueError:
+                pass
+         
+ 
+    print(RMap.shape)
+    return RMap
+    
 def main():
     args = parse_args()
 
