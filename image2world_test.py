@@ -74,7 +74,6 @@ def invert(uvPoints, rvecinv, tvec, inverse_camera, src, calibrating):
             print('world coords', out ) 
             cv.putText(src, out, (uvPoints[index][0][0][0], uvPoints[index][0][1][0]), cv.FONT_HERSHEY_SIMPLEX,  .5, (0,255,0), 2)   
         xy_coor.append(temp_point_coor)
-        print("Temp point coor", temp_point_coor)
     return src, xy_coor
 
 def uv_to_xy(img, params, uvPoints, calibrating = False):
