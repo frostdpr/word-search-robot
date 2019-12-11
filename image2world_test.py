@@ -8,6 +8,16 @@ offset_y = 0
 rvecinv = 0
 tvec = 0
 inverse_camera = 0
+
+def wordsearch_to_uv(char_coords, word_coords):
+    uv_coords = []
+    for coord_pair in word_coords:
+        p1 = char_coords[coord_pair[0][0]][coord_pair[0][1]]
+        p2 = char_coords[coord_pair[1][0]][coord_pair[1][1]]
+        uv_coords.append( [[[p1[0]], [p1[1]]], [[p2[0]], [p2[1]]] ] )
+        
+    return uv_coords
+    
 def invert(uvPoints, rvecinv, tvec, inverse_camera, src, calibrating):
     global xscale
     global yscale
@@ -19,6 +29,7 @@ def invert(uvPoints, rvecinv, tvec, inverse_camera, src, calibrating):
         temp_point_pair = []
         for point in i:
             point.append([1]) # add fake z coordinate   
+            print(point)
             uvPoint = point
             
             tempMat = rvecinv * inverse_camera * uvPoint
@@ -63,7 +74,7 @@ def invert(uvPoints, rvecinv, tvec, inverse_camera, src, calibrating):
             print('world coords', out ) 
             cv.putText(src, out, (uvPoints[index][0][0][0], uvPoints[index][0][1][0]), cv.FONT_HERSHEY_SIMPLEX,  .5, (0,255,0), 2)   
         xy_coor.append(temp_point_coor)
-           
+        print("Temp point coor", temp_point_coor)
     return src, xy_coor
 
 def uv_to_xy(img, params, uvPoints, calibrating = False):

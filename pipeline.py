@@ -202,12 +202,15 @@ def remove_shadow(img):
     return result_norm
 
 
-def segment(img, prob=False, debug=False):
+def segment(img, debug=False):
+    img = img.copy()
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     mask = np.ones(img.shape[:2], dtype='uint8') * 255 
 
     #ret,thresh = cv.threshold(gray,127,255,0)
-    canny = cv.Canny(gray, 50, 150, None, 3)
+    #erosion_kernel = np.ones((5,5), np.uint8)
+    #erode = cv.erode(gray, erosion_kernel)
+    canny = cv.Canny(gray, 40, 150, None, 3)
     contours,hier = cv.findContours(canny, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
     
     if len(contours) == 0:
@@ -223,20 +226,20 @@ def segment(img, prob=False, debug=False):
                 cv.drawContours(img,[hull],0,(0,255,0),2)
                 x,y,w,h = cv.boundingRect(cnt) # get minimal bounding for contour
                 cv.drawContours(mask, [cnt], -1, 0, -1)
-                break
+                
             #print(len(hull))
-    
+    if debug:
+        display(img, 'contor')
 
-    puzzle = img[y:y+h,x:x+w]
-    bank = cv.bitwise_and(img, img, mask=mask)
+    puzzle = img[y:y+h,x:x+w].copy()
+    bank = cv.bitwise_and(img, img, mask=mask).copy()
 
     if debug:
-        display(img)
         display(bank, 'Masked Image')
     
     return puzzle, bank, x, y
  
-def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
+def tesseract(puzzle, bank, x_offset, y_offset, debug=False, img = None) -> list:
 
     original_puzzle = puzzle
     #resize
@@ -281,7 +284,7 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
         display(puzzle, 'Preprocessed Puzzle')
         display(bank, 'Preprocessed Word Bank') 
     
-    puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
+    puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0 textord_heavy_nr=1'
     bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ textord_heavy_nr=1 '
     
     puzzle_detection = pytesseract.image_to_string(puzzle, config = puzzle_config)
@@ -291,15 +294,33 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     parsed_puzzle = [i.strip() for i in puzzle_detection.split('\n') if len(i.strip()) > 0]
     #rotated_puzzle = list(zip(*parsed_puzzle[::-1]))
     parsed_bank = []
+    overgrown_wordbank = []
     for i in bank_detection.split('\n'):
         if len(i.strip()) > 2:
-            parsed_bank.extend(i.strip().split())
+            overgrown_wordbank.extend(i.strip().split())
+            
+    for word in overgrown_wordbank:
+        if len(word) > 2:
+            parsed_bank.append(word)
     
     # quick and messy bounding boxes
     # d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
     boxes = pytesseract.image_to_boxes(puzzle, config = puzzle_config)
     #n_boxes = len(d['level'])
+    
+    print('-------------------PUZZLE----------------------')
+            
+    for i in range(len(parsed_puzzle)):
+        if ' ' in parsed_puzzle[i]:
+            parsed_puzzle[i] = parsed_puzzle[i].replace(' ', 'I').ljust(15, 'I')[0:15]
+    
+    print(parsed_puzzle)
+    print('-------------------WORD BANK----------------------')
+    print(parsed_bank)
+    
 
+        
+    
     letters_per_row = len(parsed_puzzle[0])
     character_coords = []
     i = 0
@@ -324,40 +345,29 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     #undo rotation and deskew rotation done previously
     M = cv.getRotationMatrix2D(center, 90 - deskew_angle, 1.0)
     #rotate centers of characters
-    puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+    #puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
     length = 0
+    print(x_offset, y_offset)
     print(character_coords)
     
     for x in range(len(character_coords[0])):
         for y in range(len(character_coords)):
+            #print(x,y,character_coords[x][y])
             orig = (character_coords[x][y][0], character_coords[x][y][1])
             new = rotatepoint(center, orig, -90-deskew_angle)
-            character_coords[x][y][:2] = new
+            character_coords[x][y][0] = new[0]//3 + x_offset 
+            character_coords[x][y][1] = new[1]//3 + y_offset
             if debug:
-                cv.circle(puzzle, (new[1], new[0]), 4, (0,0,0), 2)
-    
+                cv.circle(img, (character_coords[x][y][0], character_coords[x][y][1]), 4, (0,0,0), 2)
+                
+    if debug:
+        display(img, 'FINAL OUTPOUT')   
 
     if debug:
         display(puzzle, 'Bounding Box Output') 
     
-    print('-------------------PUZZLE----------------------')
-    '''
-    for j in range(len(clean_puzzle[0][0])):            
-        for idx, item in enumerate(clean_puzzle):
-            try:
-                print(clean_puzzle[idx][0][j], end='')
-            except:
-                print('*', end='')
-        print('')
-    '''
-            
-    for i in range(len(parsed_puzzle)):
-        if ' ' in parsed_puzzle[i]:
-            parsed_puzzle[i] = parsed_puzzle[i].replace(' ', 'I')
-
-    print(parsed_puzzle)
-    print('-------------------WORD BANK----------------------')
-    print(parsed_bank)
+   
+              
     # list(zip(*character_coords))[::-1] rotate -90
     return parsed_puzzle, parsed_bank, character_coords
 
@@ -384,16 +394,23 @@ def parse_args():
 
 def permutative_solve(detected_bank, detected_puzzle=None):
 
-    detected_bank = [word.lower() for word in detected_bank]
+    #detected_bank = [word.lower() for word in detected_bank]
 
     if detected_puzzle == None:
         detected_puzzle = []
         with open('test_searches/word_search.txt', 'r') as f:
             line = f.readline()
             while line:
-                detected_puzzle.append(line[:-1].lower())
+                detected_puzzle.append(line[:-1].upper())
                 detected_puzzle[-1] = detected_puzzle[-1].split(' ')
                 line = f.readline()
+    else:
+        size = len(detected_puzzle)
+        temp_puzzle = [['|' for _ in range(size)] for _ in range(size)]
+        for i in range(len(detected_puzzle)):
+            for j in range(len(detected_puzzle[i])):
+                temp_puzzle[i][j] = detected_puzzle[i][j]
+        print(temp_puzzle)
 
     solver = ps.PuzzleSolver(
         len(detected_puzzle[0]), len(detected_puzzle), detected_puzzle, detected_bank
@@ -453,6 +470,7 @@ def permutative_solve(detected_bank, detected_puzzle=None):
         return found
 
     print('SOME WORDS NOT FOUND:', incorrect_words)
+    return found
 
 def rotatepoint(center, point, ang):
     trans_point = (point[0] - center[0], point[1] - center[1])
@@ -473,10 +491,25 @@ def main():
         jetson_UART = "/dev/ttyTHS1"
         drawer = drw.Drawer(jetson_UART)
  
-    cam = cv.VideoCapture(0, cv.CAP_V4L2)
+    cam = cv.VideoCapture(1, cv.CAP_V4L2)
     cam.set(3, 1280)  # height
     cam.set(4, 720)  # width
+
     
+    
+    xyz = capture_image(cam)
+    xyz_params = chessboard_calibrate('calibration_dummy', 6, 8, debug=False)
+    ret, mtx, dist, rvecs, tvecs = xyz_params
+    h, w = xyz.shape[:2]
+    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+    xyz = cv.undistort(xyz, mtx, dist, None, newcameramtx)
+    x, y, w, h = roi
+    xyz = xyz[y:y+h, x:x+w]
+    xy_check = i2wt.uv_to_xy(xyz, xyz_params,[],True)
+    display(xy_check[0])
+    print(xy_check[1])
+    
+        
     if args.image:
         img = cv.imread(args.image)
     else:
@@ -493,37 +526,37 @@ def main():
         x, y, w, h = roi
         img = img[y:y+h, x:x+w]
    
-        display(img, 'Calibration Output')
-    
-    
-    xyz = capture_image(cam)
-    xyz_params = chessboard_calibrate('calibration_dummy', 6, 8, debug=False)
-    ret, mtx, dist, rvecs, tvecs = xyz_params
-    h, w = img.shape[:2]
-    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
-    xyz = cv.undistort(xyz, mtx, dist, None, newcameramtx)
-    x, y, w, h = roi
-    xyz = xyz[y:y+h, x:x+w]
-    xy_check = i2wt.uv_to_xy(xyz, xyz_params,[],True)
-    display(xy_check[0])
-    print(xy_check[1])
-    '''
+        #display(img, 'Calibration Output')
+        
+        
     img = remove_shadow(img)
-    puzzle, bank, x_offset, y_offset = segment(img)
+    puzzle, bank, x_offset, y_offset = segment(img, True)
     
-    detected_puzzle, detected_bank, _ = tesseract(puzzle, bank, x_offset, y_offset, debug=True)
-    solved_uv_points = permutative_solve(detected_bank)
-    '''
-    solved_uv_points = [[[[468 ], [222]],[[470],[642]]], [[[764],[446]], [[1064],[220]]]]
+    detected_puzzle, detected_bank, char_coords = tesseract(puzzle, bank, x_offset, y_offset, debug=True, img=img)
+    solved_word_points = permutative_solve(detected_bank, detected_puzzle)
+    print(solved_word_points)
+    solved_uv_points = i2wt.wordsearch_to_uv(char_coords, solved_word_points)
+    
+    print(solved_uv_points)#char_coords[solved_uv_points[0][0][0]][solved_uv_points[0][0][1]][2])
+    
+    #solved_uv_points = [[[[468 ], [222]],[[470],[642]]], [[[764],[446]], [[1064],[220]]]]
     to_MSP_points = i2wt.uv_to_xy(xyz, xyz_params, solved_uv_points, False)
     print(to_MSP_points[1])
     display(to_MSP_points[0])
     if args.everything:
+        start_offset_x = 27
+        start_offset_y = 13
         drawer.read(1)
-        for point_pair in to_MSP_points:
+        for point_pair in to_MSP_points[1]:
             print(point_pair)
-            drawer.draw(point_pair)
+            x1 = int(point_pair[0][0]/.225) + start_offset_x
+            y1 = int(point_pair[0][1]/.225) + start_offset_y
+            x2 = int(point_pair[1][0]/.225) + start_offset_x
+            y2 = int(point_pair[1][1]/.225) + start_offset_y
+            to_draw = [(x1, y1), (x2, y2)]
+            drawer.draw(to_draw)
             drawer.read(1)
+        drawer.send(255)
         drawer.cleanup()
         
     

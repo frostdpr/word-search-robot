@@ -25,6 +25,7 @@ class PuzzleSolver:
     def get_word_in_grid(self, startRow, startCol, d, l):
         word = ""
         pos, r, c = 0, startRow, startCol
+        r_ret, c_ret = r, c
 
         for i in range(l):
             #if current row or column is out of bounds, break
@@ -34,6 +35,7 @@ class PuzzleSolver:
             #pos += 1
             #print(self.puzzle[r][c])
             word += self.puzzle[r][c]
+            r_ret, c_ret = r, c
 
             if d == 0:
                 r -= 1
@@ -56,7 +58,7 @@ class PuzzleSolver:
                 r -= 1
                 c -= 1
             
-        return word, r, c
+        return word, r_ret, c_ret
 
     def solve(self):
         word_count = 0
@@ -69,7 +71,7 @@ class PuzzleSolver:
                         word, r, c = self.get_word_in_grid(i, j, d, length)
 
                         if self.bank[word] == word:
-                            found.append(([[[i],[j]]],[[[r],[c]]]))
+                            found.append(([i,j],[r,c]))
                             print(i, j, word)
                             try:
                                 not_found.remove(word)
@@ -78,7 +80,7 @@ class PuzzleSolver:
 
                             word_count += 1
 
-        print('words found', word_count)
+        #print('words found', word_count)
         return not_found, found
 
     def potential_words_solve(self, incorrect_words, potential_words):
