@@ -151,8 +151,6 @@ def chessboard_calibrate(path, chessboard_rows, chessboard_cols, debug=False):
         print('Processing', filepath)
         img = cv.imread(filepath)
 
-        #if debug:
-            #img = cv.resize(img, (0,0), fx=.5, fy=.5)
 
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
@@ -205,48 +203,6 @@ def remove_shadow(img):
 
 
 def segment(img, prob=False, debug=False):
-    '''
-    dst = cv.cvtColor(img, cv.COLOR_BGR2GRAY )
-    
-    #kernel = np.ones((1,1),np.uint8)
-    #dst = cv.erode(dst,kernel,iterations = 20)
-    dst = cv.Canny(dst, 50, 150, None, 3)
-    # Copy edges to the images that will display the results in BGR
-    cdst = cv.cvtColor(dst, cv.COLOR_GRAY2BGR)
-
-    if prob: #use probabilistic hough transform
-         linesP = cv.HoughLinesP(dst, 1, np.pi / 180, 200, None, 300, 50)
-    
-         if linesP is not None:
-             for i in range(0, len(linesP)):
-                 l = linesP[i][0]
-                 cv.line(cdst, (l[0], l[1]), (l[2], l[3]), (0,0,255), 3, cv.LINE_AA)
-         print(linesP)
-    else:
-        lines = cv.HoughLines(dst, 1, np.pi / 180, 200  , None, 0, 0)
-        
-        if lines is not None:
-            for i in range(0, len(lines)):
-                rho = lines[i][0][0]
-                theta = lines[i][0][1]
-                a = math.cos(theta)
-                b = math.sin(theta)
-                x0 = a * rho
-                y0 = b * rho
-                pt1 = (int(x0 + 1000*(-b)), int(y0 + 1000*(a)))
-                pt2 = (int(x0 - 1000*(-b)), int(y0 - 1000*(a)))
-                cv.line(cdst, pt1, pt2, (0,0,255), 3, cv.LINE_AA)
-
-            print(lines)
-
-    while True and not debug:
-        cv.imshow('output', cdst)
-        if cv.waitKey(1) == 27: 
-            cv.destroyAllWindows()
-            break;
-    return cdst
-    #return (puzzle_main, puzzle_bank)
-    '''
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     mask = np.ones(img.shape[:2], dtype='uint8') * 255 
 
@@ -320,12 +276,10 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
 
     print('deskew', deskew_angle)
     M = cv.getRotationMatrix2D(center, deskew_angle, 1.0)
-    #display(puzzle, 'puzzle before')
     puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
-    #display(puzzle, 'puzzle after')
     if debug:
         display(puzzle, 'Preprocessed Puzzle')
-        display(bank, 'Preprocessed Word Bank')
+        display(bank, 'Preprocessed Word Bank') 
     
     puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0'
     bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ textord_heavy_nr=1 '
@@ -356,66 +310,37 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
         # tuple with top left and bottom right coords
         b = b.split(' ')
         bounds = (int(b[1]),h - int(b[2]),int(b[3]),h - int(b[4]))
-        character_coords[-1].append( [(int(bounds[2]) + int(bounds[0]))//2, (int(bounds[1]) + int(bounds[3]))//2, b[0]] )
-        #cv.circle(puzzle, (character_coords[-1][-1][0], character_coords[-1][-1][1]), 8, (0,0,0), 2)
-        #character_coords[-1][-1][0],character_coords[-1][-1][1] = character_coords[-1][-1][1]//3 + x_offset, character_coords[-1][-1][1]//3 + y_offset
+        character_coords[-1].append( [(int(bounds[2]) + int(bounds[0]))//2, (int(bounds[1]) + int(bounds[3]))//2, b[0]])
         cv.rectangle(puzzle, (int(b[1]), h - int(b[2])), (int(b[3]), h - int(b[4])), (0,255,0), 2)
         i += 1
         
-    upright_puzzle = np.zeros(puzzle.shape, dtype=np.uint8)
-    #character_coords = np.array(character_coords)
-    
-    for x in range(len(character_coords[0])):
-        for y in range(len(character_coords)):
-            upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]] = (100, character_coords[x][y][2])
-            #print(character_coords[x][y][0], character_coords[x][y][1], upright_puzzle[character_coords[x][y][1]][character_coords[x][y][0]])
 
+    upright_puzzle = [ [[0,0,0,''] for _ in range(w)] for _ in range(h)]
+    
     print('-------------------ROTATING----------------------')
     
     #recalculate center for copy of image
-    h, w = upright_puzzle.shape[:2]
     center = (w // 2, h // 2)
     #undo rotation and deskew rotation done previously
     M = cv.getRotationMatrix2D(center, 90 - deskew_angle, 1.0)
     #rotate centers of characters
     puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
     length = 0
-    for j in range(len(upright_puzzle)):
-        for i in range(len(upright_puzzle[j])):
-            if(upright_puzzle[j][i][0]>0):
-                orig = (j,i)
-                new = rotatepoint(center, orig, 90-deskew_angle)
-                cv.circle(puzzle, (new[1], new[0]), 8, (0,0,0), 2)
-                length+=1
-                #new = cv.warpAffine(orig, M, (1, 2), flags=cv.INTER_NEAREST, borderMode=cv.BORDER_REPLICATE)
-                #print('orig:', orig, 'new:', new)
-    #upright_puzzle = cv.warpAffine(upright_puzzle, M, (w, h), flags=cv.INTER_NEAREST, borderMode=cv.BORDER_REPLICATE)
-    #nonzero_arr = np.nonzero(upright_puzzle)
-    print(length)
-    #print((nonzero_arr))
-    #print(len(nonzero_arr[0]))
+    print(character_coords)
     
-    #for i in range(len(nonzero_arr[0])):
-    #    cv.circle(puzzle, (nonzero_arr[1][i], nonzero_arr[0][i]), 8, (0,0,0), 2)
-
-    character_coords = np.array(character_coords)
-
-    deskew_matrix = M[:,:2]
-
-
-    for i in range(len(character_coords[0])):
-        for j in range(len(character_coords[0])):
-            character_coords[i][j] = np.matmul(deskew_matrix, character_coords[i][j]).tolist()#matrix_mult(character_coords[i][j], deskew_matrix)
-
-    character_coords = character_coords.tolist()
+    for x in range(len(character_coords[0])):
+        for y in range(len(character_coords)):
+            orig = (character_coords[x][y][0], character_coords[x][y][1])
+            new = rotatepoint(center, orig, -90-deskew_angle)
+            character_coords[x][y][:2] = new
+            if debug:
+                cv.circle(puzzle, (new[1], new[0]), 4, (0,0,0), 2)
+    
 
     if debug:
         display(puzzle, 'Bounding Box Output') 
     
     print('-------------------PUZZLE----------------------')
-    #print('/n'.join(rotated_puzzle[0]))
-    
-    #clean_puzzle = rotated_puzzle[0]
     '''
     for j in range(len(clean_puzzle[0][0])):            
         for idx, item in enumerate(clean_puzzle):
@@ -433,8 +358,8 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False) -> list:
     print(parsed_puzzle)
     print('-------------------WORD BANK----------------------')
     print(parsed_bank)
-    
-    return parsed_puzzle, parsed_bank, deskew_angle
+    # list(zip(*character_coords))[::-1] rotate -90
+    return parsed_puzzle, parsed_bank, character_coords
 
 
 def debug(function, device):
@@ -528,10 +453,12 @@ def permutative_solve(detected_bank, detected_puzzle=None):
     print('SOME WORDS NOT FOUND:', incorrect_words)
 
 def rotatepoint(center, point, ang):
-    trans_point = (point[0] - center[1], point[1] - center[0])
-    x = math.cos((ang*2*math.pi)/180)*trans_point[1]+math.sin((ang*2*math.pi)/180)*trans_point[0]
-    y = math.cos((ang*2*math.pi)/180)*trans_point[0]-math.sin((ang*2*math.pi)/180)*trans_point[1]
-    return (int(round(y,0))+center[1],int(round(x,0))+center[0])
+    trans_point = (point[0] - center[0], point[1] - center[1])
+    
+    x = math.cos((ang*math.pi)/180)*trans_point[0]-math.sin((ang*math.pi)/180)*trans_point[1]
+    y = math.sin((ang*math.pi)/180)*trans_point[0]+math.cos((ang*math.pi)/180)*trans_point[1]
+    
+    return (int(round(x,0))+center[0],int(round(y,0))+center[1])
     
 
 def main():
@@ -575,20 +502,28 @@ def main():
     xyz = cv.undistort(xyz, mtx, dist, None, newcameramtx)
     x, y, w, h = roi
     xyz = xyz[y:y+h, x:x+w]
-    display(i2wt.uv_to_xy(xyz, xyz_params,[],True)[0])
+    xy_check = i2wt.uv_to_xy(xyz, xyz_params,[],True)
+    display(xy_check[0])
+    print(xy_check[1])
     
     img = remove_shadow(img)
     puzzle, bank, x_offset, y_offset = segment(img)
     
     detected_puzzle, detected_bank, _ = tesseract(puzzle, bank, x_offset, y_offset, debug=True)
-    '''#permutative_solve(detected_bank)
+    solved_uv_points = permutative_solve(detected_bank)
+    [[[i[0]], [i[1]]], [] .....]
     
+    
+    to_MSP_points = i2wt.uv_to_xy(xyz, xyz_params, solved_uv_points, False)[1]
+        
     if args.everything:
         drawer.read(1)
-    #send commands
-    
-    if args.everything:
+        for point_pair in to_MSP_points:
+            print(point_pair)
+            drawer.draw(point_pair)
+            drawer.read(1)
         drawer.cleanup()
+
     '''
 if __name__ == '__main__':
     main()
