@@ -15,9 +15,6 @@ class Drawer:
         def cleanup(self):
                 self.serial_port.close()
 
-        def draw(self, p1 : (int, int), p2 : (int, int)):
-                pass
-
         def read(self, size):
                 return self.serial_port.read(size) 
         
@@ -26,9 +23,9 @@ class Drawer:
                 self.serial_port.write(data)
                 self.serial_port.flush()
                 
-        def send_packet(self, data):  
-                '''data: [(x1, y1), (x2, y2)]'''
-                for i, val in enumerate(data):
+        def draw(self, points):  
+                '''points: [(x1, y1), (x2, y2)]'''
+                for i, val in enumerate(points):
                     self.send(val[0])
                     self.send(val[1])
                     print('Sent', val)
