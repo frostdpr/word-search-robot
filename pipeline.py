@@ -494,7 +494,7 @@ def main():
         jetson_UART = "/dev/ttyTHS1"
         drawer = drw.Drawer(jetson_UART)
  
-    cam = cv.VideoCapture(1, cv.CAP_V4L2)
+    cam = cv.VideoCapture(0, cv.CAP_V4L2)
     cam.set(3, 1280)  # height
     cam.set(4, 720)  # width
 
@@ -512,6 +512,7 @@ def main():
     display(xy_check[0])
     print(xy_check[1])
     
+
     while True:
         try:
             if args.image:
@@ -569,5 +570,6 @@ def main():
             if args.everything:
                 drawer.cleanup()
             break
+
 if __name__ == '__main__':
     main()
