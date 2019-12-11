@@ -505,17 +505,17 @@ def main():
     xy_check = i2wt.uv_to_xy(xyz, xyz_params,[],True)
     display(xy_check[0])
     print(xy_check[1])
-    
+    '''
     img = remove_shadow(img)
     puzzle, bank, x_offset, y_offset = segment(img)
     
     detected_puzzle, detected_bank, _ = tesseract(puzzle, bank, x_offset, y_offset, debug=True)
     solved_uv_points = permutative_solve(detected_bank)
-    [[[i[0]], [i[1]]], [] .....]
-    
-    
-    to_MSP_points = i2wt.uv_to_xy(xyz, xyz_params, solved_uv_points, False)[1]
-        
+    '''
+    solved_uv_points = [[[[468 ], [222]],[[470],[642]]], [[[764],[446]], [[1064],[220]]]]
+    to_MSP_points = i2wt.uv_to_xy(xyz, xyz_params, solved_uv_points, False)
+    print(to_MSP_points[1])
+    display(to_MSP_points[0])
     if args.everything:
         drawer.read(1)
         for point_pair in to_MSP_points:
@@ -524,6 +524,6 @@ def main():
             drawer.read(1)
         drawer.cleanup()
 
-    '''
+
 if __name__ == '__main__':
     main()
