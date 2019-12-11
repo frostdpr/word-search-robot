@@ -491,7 +491,7 @@ def main():
         jetson_UART = "/dev/ttyTHS1"
         drawer = drw.Drawer(jetson_UART)
  
-    cam = cv.VideoCapture(1, cv.CAP_V4L2)
+    cam = cv.VideoCapture(0, cv.CAP_V4L2)
     cam.set(3, 1280)  # height
     cam.set(4, 720)  # width
 
@@ -544,15 +544,16 @@ def main():
     print(to_MSP_points[1])
     display(to_MSP_points[0])
     if args.everything:
-        start_offset_x = 27
-        start_offset_y = 13
+        scaling_factor = 0.65
+        start_offset_x = 8
+        start_offset_y = 12
         drawer.read(1)
         for point_pair in to_MSP_points[1]:
             print(point_pair)
-            x1 = int(point_pair[0][0]/.225) + start_offset_x
-            y1 = int(point_pair[0][1]/.225) + start_offset_y
-            x2 = int(point_pair[1][0]/.225) + start_offset_x
-            y2 = int(point_pair[1][1]/.225) + start_offset_y
+            x1 = int(point_pair[0][0]/scaling_factor) + start_offset_x
+            y1 = int(point_pair[0][1]/scaling_factor) + start_offset_y
+            x2 = int(point_pair[1][0]/scaling_factor) + start_offset_x
+            y2 = int(point_pair[1][1]/scaling_factor) + start_offset_y
             to_draw = [(x1, y1), (x2, y2)]
             drawer.draw(to_draw)
             drawer.read(1)
