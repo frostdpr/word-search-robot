@@ -8,16 +8,18 @@ class PuzzleSolver:
         self.puzzle = puzzle
         self.min_word_len = 23
         self.max_word_len = 0
-        self.load_word_bank(bank)
+        self.bank = self.load_word_bank(bank)
     
     #Takes in a list of strings to insert into wordbank dictionary
     def load_word_bank(self, bank):
-        self.bank = defaultdict(lambda: None)
+        ret = defaultdict(lambda: None)
 
         for word in bank:
             self.min_word_len = min(self.min_word_len, len(word))
             self.max_word_len = max(self.max_word_len, len(word))
-            self.bank[word] = word
+            ret[word] = word
+
+        return ret
 
     #switch case for direction
     def get_word_in_grid(self, startRow, startCol, d, l):
@@ -27,7 +29,7 @@ class PuzzleSolver:
         for i in range(l):
             #if current row or column is out of bounds, break
             if c >= self.c or r >= self.r or r < 0 or c < 0:
-                return ""
+                return "", r, c
 
             #pos += 1
             #print(self.puzzle[r][c])
@@ -54,19 +56,20 @@ class PuzzleSolver:
                 r -= 1
                 c -= 1
             
-        return word
+        return word, r, c
 
     def solve(self):
         word_count = 0
         not_found = list(self.bank.keys())
-        print('puzzle bank', not_found)
+        found = []
         for i in range(self.r):
             for j in range(self.c):
                 for d in range(8):
                     for length in range(self.min_word_len, self.max_word_len + 1):
-                        word = self.get_word_in_grid(i, j, d, length)
+                        word, r, c = self.get_word_in_grid(i, j, d, length)
 
                         if self.bank[word] == word:
+                            found.append(([[[i],[j]]],[[[r],[c]]]))
                             print(i, j, word)
                             try:
                                 not_found.remove(word)
@@ -76,13 +79,14 @@ class PuzzleSolver:
                             word_count += 1
 
         print('words found', word_count)
-        return not_found
+        return not_found, found
 
     def potential_words_solve(self, incorrect_words, potential_words):
 
         retry_bank = []
         _inbounds = True
         i = 0
+        found = []
 
         while _inbounds:
             retry_bank = []
@@ -95,8 +99,8 @@ class PuzzleSolver:
                 _inbounds = True
                 retry_bank.append(words[i])
 
-            self.load_word_bank(retry_bank)
-            incorrect_retry = self.solve()
+            self.bank = self.load_word_bank(retry_bank)
+            incorrect_retry, found = self.solve()
 
             for word in retry_bank:
                 # if the word was found, delete it from potential words list
@@ -108,9 +112,11 @@ class PuzzleSolver:
 
             # Found every word! Done
             if len(incorrect_words) == 0:
-                return
+                return found
 
             i += 1
+
+        return found
 
     def get_index(self, arr, target):
 

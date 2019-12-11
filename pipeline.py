@@ -400,11 +400,11 @@ def permutative_solve(detected_bank, detected_puzzle=None):
     )
 
     print('-------------------SOLVING PUZZLE----------------------')
-    incorrect_words = solver.solve()
+    incorrect_words, found = solver.solve()
 
     if len(incorrect_words) == 0:
         print('\nALL WORDS FOUND!')
-        return
+        return found
 
     print('-----------------RETRYING WITH SWAPPED CHARACTERS----------------')
     potential_words = []
@@ -416,11 +416,12 @@ def permutative_solve(detected_bank, detected_puzzle=None):
 
     print(potential_words)
 
-    solver.potential_words_solve(incorrect_words, potential_words)
+    for word in solver.potential_words_solve(incorrect_words, potential_words):
+        found.append(word)
 
     if len(incorrect_words) == 0:
         print('\nALL WORDS FOUND!')
-        return
+        return found
 
     print('-----------------RETRYING WITH NEW BANK----------------')
     corrector = jamspell.TSpellCorrector()
@@ -439,16 +440,17 @@ def permutative_solve(detected_bank, detected_puzzle=None):
             '\nCould not find alternate spellings for the following words: ',
             incorrect_words,
         )
-        return
+        return found
     else:
         print('Incorrect words', incorrect_words)
 
-    solver.potential_words_solve(incorrect_words, potential_words)
+    for word in solver.potential_words_solve(incorrect_words, potential_words):
+        found.append(word)
 
     # Found every word! Done
     if len(incorrect_words) == 0:
         print('\nALL WORDS FOUND!')
-        return
+        return found
 
     print('SOME WORDS NOT FOUND:', incorrect_words)
 
@@ -523,7 +525,7 @@ def main():
             drawer.draw(point_pair)
             drawer.read(1)
         drawer.cleanup()
-
-
+        
+    
 if __name__ == '__main__':
     main()
