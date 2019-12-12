@@ -6,7 +6,7 @@ import string
 if not os.path.exists('calibration'):
     os.makedirs('calibration')
     
-cam = cv.VideoCapture(0)
+cam = cv.VideoCapture(0, cv.CAP_V4L2)
 cam.set(3,1280) #height                                                    
 cam.set(4,720) #width 
 letters = string.ascii_lowercase
