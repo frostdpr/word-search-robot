@@ -19,14 +19,14 @@ import jamspell
 #tess_data_windows = 'C:\\Program\ Files\\Tesseract-OCR\\tessdata'
 
 word_swap = {
-    "g": "q",
-    "i": "l",
-    "h": "n",
-    "q": "g",
-    "l": "i",
-    "n": "h",
-    "c": "o",
-    "o": "c",
+    "E": "F",
+    "F": "E",
+    "M": "H",
+    "H": "M",
+    "C": "G",
+    "G": "C",
+    "O": "Q",
+    "Q": "O",
     }
 
 
@@ -208,9 +208,10 @@ def segment(img, debug=False):
     mask = np.ones(img.shape[:2], dtype='uint8') * 255 
 
     #ret,thresh = cv.threshold(gray,127,255,0)
-    #erosion_kernel = np.ones((5,5), np.uint8)
-    #erode = cv.erode(gray, erosion_kernel)
-    canny = cv.Canny(gray, 40, 150, None, 3)
+    erosion_kernel = np.ones((3,3), np.uint8)
+    erode = cv.erode(gray, erosion_kernel)
+    canny = cv.Canny(erode, 50, 150, None, 3)
+    #display(canny)
     contours,hier = cv.findContours(canny, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
     
     if len(contours) == 0:
@@ -218,7 +219,7 @@ def segment(img, debug=False):
         return
     
     for i, cnt in enumerate(contours):
-        if cv.contourArea(cnt)>50000:  # only grab large contours
+        if cv.contourArea(cnt)>50000 and cv.contourArea(cnt) <200000:  # only grab large contours
             print(cv.contourArea(cnt))
             hull = cv.convexHull(cnt) # find the convex hull of contour
             hull = cv.approxPolyDP(hull,0.1*cv.arcLength(hull,True),True)
@@ -229,14 +230,11 @@ def segment(img, debug=False):
                 
             #print(len(hull))
     if debug:
-        display(img, 'contor')
+        display(img, 'contour')
 
     puzzle = img[y:y+h,x:x+w].copy()
     bank = cv.bitwise_and(img, img, mask=mask).copy()
 
-    if debug:
-        display(bank, 'Masked Image')
-    
     return puzzle, bank, x, y
  
 def tesseract(puzzle, bank, x_offset, y_offset, debug=False, img = None) -> list:
@@ -280,9 +278,9 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False, img = None) -> list
     print('deskew', deskew_angle)
     M = cv.getRotationMatrix2D(center, deskew_angle, 1.0)
     puzzle = cv.warpAffine(puzzle, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
-    if debug:
-        display(puzzle, 'Preprocessed Puzzle')
-        display(bank, 'Preprocessed Word Bank') 
+    #if debug:
+    #    display(puzzle, 'Preprocessed Puzzle')
+    #    display(bank, 'Preprocessed Word Bank') 
     
     puzzle_config = r'--tessdata-dir "./protos_data/tessdata" -l eng  --oem 0 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ load_system_dawg=0 load_freq_dawg=0 textord_heavy_nr=1'
     bank_config = r' --oem 3 --psm 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ textord_heavy_nr=1 '
@@ -302,7 +300,7 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False, img = None) -> list
     for word in overgrown_wordbank:
         if len(word) > 2:
             parsed_bank.append(word)
-    
+    parsed_bank.append('POOP')
     # quick and messy bounding boxes
     # d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
     boxes = pytesseract.image_to_boxes(puzzle, config = puzzle_config)
@@ -358,13 +356,13 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False, img = None) -> list
             character_coords[x][y][0] = new[0]//3 + x_offset 
             character_coords[x][y][1] = new[1]//3 + y_offset
             if debug:
-                cv.circle(img, (character_coords[x][y][0], character_coords[x][y][1]), 4, (0,0,0), 2)
+                cv.circle(img, (character_coords[x][y][0], character_coords[x][y][1]), 1, (0,0,0), 2)
                 
     if debug:
         display(img, 'FINAL OUTPOUT')   
 
-    if debug:
-        display(puzzle, 'Bounding Box Output') 
+    #if debug:
+    #    display(puzzle, 'Bounding Box Output') 
     
    
               
@@ -447,8 +445,13 @@ def permutative_solve(detected_bank, detected_puzzle=None):
     potential_words = []
 
     # get word candidates that may be the correct target word, put them in potential_words
-    for i in range(len(incorrect_words)):
-        candidates = list(corrector.GetCandidates(incorrect_words, i))
+    lower_case_attempts = []
+    for word in incorrect_words:
+        lower_case_attempts.append(word.lower())
+        
+    for i in range(len(lower_case_attempts)):
+        candidates = list(corrector.GetCandidates(lower_case_attempts, i))
+        candidates = [word.upper() for word in candidates]
         candidates.append(incorrect_words[i])
         potential_words.append(candidates)
 
@@ -509,57 +512,64 @@ def main():
     display(xy_check[0])
     print(xy_check[1])
     
-        
-    if args.image:
-        img = cv.imread(args.image)
-    else:
-        img = capture_image(cam)
-    
-    # Camera Calibration
-    # param order ret, mtx, dist, rvecs, tvecs
-    if not args.image:
-        params = chessboard_calibrate('calibration', 6, 8, debug=False)
-        ret, mtx, dist, rvecs, tvecs = params
-        h, w = img.shape[:2]
-        newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
-        img = cv.undistort(img, mtx, dist, None, newcameramtx)
-        x, y, w, h = roi
-        img = img[y:y+h, x:x+w]
-   
-        #display(img, 'Calibration Output')
-        
-        
-    img = remove_shadow(img)
-    puzzle, bank, x_offset, y_offset = segment(img, True)
-    
-    detected_puzzle, detected_bank, char_coords = tesseract(puzzle, bank, x_offset, y_offset, debug=True, img=img)
-    solved_word_points = permutative_solve(detected_bank, detected_puzzle)
-    print(solved_word_points)
-    solved_uv_points = i2wt.wordsearch_to_uv(char_coords, solved_word_points)
-    
-    print(solved_uv_points)#char_coords[solved_uv_points[0][0][0]][solved_uv_points[0][0][1]][2])
-    
-    #solved_uv_points = [[[[468 ], [222]],[[470],[642]]], [[[764],[446]], [[1064],[220]]]]
-    to_MSP_points = i2wt.uv_to_xy(xyz, xyz_params, solved_uv_points, False)
-    print(to_MSP_points[1])
-    display(to_MSP_points[0])
-    if args.everything:
-        scaling_factor = 0.65
-        start_offset_x = 8
-        start_offset_y = 12
-        drawer.read(1)
-        for point_pair in to_MSP_points[1]:
-            print(point_pair)
-            x1 = int(point_pair[0][0]/scaling_factor) + start_offset_x
-            y1 = int(point_pair[0][1]/scaling_factor) + start_offset_y
-            x2 = int(point_pair[1][0]/scaling_factor) + start_offset_x
-            y2 = int(point_pair[1][1]/scaling_factor) + start_offset_y
-            to_draw = [(x1, y1), (x2, y2)]
-            drawer.draw(to_draw)
-            drawer.read(1)
-        drawer.send(255)
-        drawer.cleanup()
-        
-    
+
+    while True:
+        try:
+            if args.image:
+                img = cv.imread(args.image)
+            else:
+                img = capture_image(cam)
+            
+            # Camera Calibration
+            # param order ret, mtx, dist, rvecs, tvecs
+            if not args.image:
+                params = chessboard_calibrate('calibration', 6, 8, debug=False)
+                ret, mtx, dist, rvecs, tvecs = params
+                h, w = img.shape[:2]
+                newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+                img = cv.undistort(img, mtx, dist, None, newcameramtx)
+                x, y, w, h = roi
+                img = img[y:y+h, x:x+w]
+           
+                #display(img, 'Calibration Output')
+                
+                
+            img = remove_shadow(img)
+            puzzle, bank, x_offset, y_offset = segment(img, True)
+            
+            detected_puzzle, detected_bank, char_coords = tesseract(puzzle, bank, x_offset, y_offset, debug=True, img=img)
+            solved_word_points = permutative_solve(detected_bank, detected_puzzle)
+            print(solved_word_points)
+            solved_uv_points = i2wt.wordsearch_to_uv(char_coords, solved_word_points)
+            
+            print(solved_uv_points)#char_coords[solved_uv_points[0][0][0]][solved_uv_points[0][0][1]][2])
+            
+            #solved_uv_points = [[[[468 ], [222]],[[470],[642]]], [[[764],[446]], [[1064],[220]]]]
+            to_MSP_points = i2wt.uv_to_xy(xyz, xyz_params, solved_uv_points, False)
+            display(to_MSP_points[0])
+            if args.everything:
+                scaling_factor_x = 0.22
+                scaling_factor_y = 0.22
+                start_offset_x = 3.75
+                start_offset_y = 6.6
+                drawer.read(1)
+                for point_pair in to_MSP_points[1]:
+                    x1 = int(round((point_pair[0][0]+start_offset_x)/scaling_factor_x))
+                    y1 = int(round((point_pair[0][1]+start_offset_y)/scaling_factor_y))
+                    x2 = int(round((point_pair[1][0]+start_offset_x)/scaling_factor_x))
+                    y2 = int(round((point_pair[1][1]+start_offset_y)/scaling_factor_y))
+                    to_draw = [(x1, y1), (x2, y2)]
+                    drawer.draw(to_draw)
+                    drawer.read(1)
+                drawer.send(255)
+                cv.destroyAllWindows()
+        except Exception as e:
+            print(e)
+        except (KeyboardInterrupt):
+            print('See ya later!')
+            if args.everything:
+                drawer.cleanup()
+            break
+
 if __name__ == '__main__':
     main()
