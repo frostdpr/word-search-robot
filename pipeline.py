@@ -300,7 +300,6 @@ def tesseract(puzzle, bank, x_offset, y_offset, debug=False, img = None) -> list
     for word in overgrown_wordbank:
         if len(word) > 2:
             parsed_bank.append(word)
-    parsed_bank.append('POOP')
     # quick and messy bounding boxes
     # d = pytesseract.image_to_data(puzzle, output_type=pytesseract.Output.DICT, config=puzzle_config)
     boxes = pytesseract.image_to_boxes(puzzle, config = puzzle_config)
