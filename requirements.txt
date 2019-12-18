@@ -1,6 +1,6 @@
 pytesseract
 pyserial
-numpy
+numpy>=1.17.0
 matplotlib
 pillow
 opencv-python
