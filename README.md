@@ -20,3 +20,7 @@ Written to run on Nvidia Jetson Nano.
 
 ### Run with UART output
 `./pipeline.py -e`
+
+
+## Demo
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/D3Dq6W2bBUs/0.jpg)](http://www.youtube.com/watch?v=D3Dq6W2bBUs "Word Search Solve Demo")
